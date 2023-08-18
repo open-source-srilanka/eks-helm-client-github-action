@@ -1,0 +1,27 @@
+apiVersion: v1
+clusters:
+- cluster:
+    server: ${ENDPOINT_URL}
+    certificate-authority-data: ${CA_CERT}
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: aws
+  name: aws
+current-context: aws
+kind: Config
+preferences: {}
+users:
+- name: aws
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: aws
+      args:
+        - --region
+        - ${REGION_CODE}
+        - eks
+        - get-token
+        - --cluster-name
+        - ${CLUSTER_NAME}

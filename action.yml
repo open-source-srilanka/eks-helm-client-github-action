@@ -1,0 +1,12 @@
+name: 'EKS Helm Client'
+description: 'Helm client to install and upgrade Helm chart on EKS cluster'
+branding:
+  icon: 'package'
+  color: 'green'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+inputs:
+  args:
+    description: Commands need to install and upgrade Helm chart
+    required: true
