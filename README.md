@@ -18,6 +18,7 @@ steps:
     with:
       args: >
         bash -c "
+          aws eks update-kubeconfig --name $CLUSTER_NAME --region $REGION_CODE;
           helm repo add bitnami https://charts.bitnami.com/bitnami;
           helm repo update;
           helm install bitnami/mysql --generate-name
