@@ -19,7 +19,7 @@ This Action allows you to install & upgrade Helm Charts in EKS. By using this Gi
         "
 ```
 
-For more detailed information on how to use this action, please refer to this [example](https://github.com/open-source-srilanka/examples/tree/master/eks-helm-client-github-action/.github/workflows).
+For more detailed information on how to use this action, please refer to this [example](https://github.com/open-source-srilanka/examples/tree/master/eks-helm-client-github-action).
 
 ## Inputs
 
