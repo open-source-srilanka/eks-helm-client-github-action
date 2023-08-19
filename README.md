@@ -13,8 +13,8 @@ steps:
   - name: Install & upgrade Helm chart on EKS
     uses: open-source-srilanka/eks-helm-client-github-action@v1.0.0
     env:
-      REGION_CODE: ap-southeast-1
-      CLUSTER_NAME: eks-client-cluster
+      REGION_CODE: <your-cluster-region>
+      CLUSTER_NAME: <your-cluster-name>
     with:
       args: >
         bash -c "
