@@ -6,7 +6,7 @@ This Action allows you to install & upgrade Helm Charts in EKS. By using this Gi
 
 ```yaml
 - name: Deploy Helm Chart to EKS Cluster
-  uses: open-source-srilanka/eks-helm-client-github-action@v0.1.0
+  uses: open-source-srilanka/eks-helm-client-github-action@v1.0.0
   env:
     REGION_CODE: <your-region-code>
     CLUSTER_NAME: <your-cluster-name>
