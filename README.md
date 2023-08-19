@@ -1,17 +1,10 @@
 # GitHub Action to deploy Helm Charts in EKS
 
-This Action allows you to deploy Helm Charts in EKS. By using this GitHub Action, you can automate the deployment of your Helm Charts in EKS.
+This Action allows you to install & upgrade Helm Charts in EKS. By using this GitHub Action, you can automate the deployment of your Helm Charts in EKS easily. 
 
 ## Usage
 
 ```yaml
-- name: Setup AWS Credentials
-  uses: aws-actions/configure-aws-credentials@v2.2.0
-  with:
-    aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} // AWS Access Key ID in GitHub Secrets
-    aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} // AWS Secret Access Key in GitHub Secrets
-    aws-region: ${{ secrets.REGION_CODE }} // REGION_CODE in GitHub Secrets   
-
 - name: Deploy Helm Chart to EKS Cluster
   uses: open-source-srilanka/eks-helm-client-github-action@v0.1.0
   env:
@@ -25,6 +18,9 @@ This Action allows you to deploy Helm Charts in EKS. By using this GitHub Action
             helm install bitnami/mysql --generate-name
         "
 ```
+
+For more detailed information on how to use this action, please refer to this [example](https://github.com/open-source-srilanka/examples/tree/master/eks-helm-client-github-action/.github/workflows).
+
 ## Inputs
 
 </br>
