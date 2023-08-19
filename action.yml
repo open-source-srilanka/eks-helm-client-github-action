@@ -1,8 +1,8 @@
 name: 'EKS Helm Client'
 description: 'Helm client to install and upgrade Helm chart on EKS cluster'
 branding:
-  icon: 'package'
-  color: 'green'
+  icon: 'upload-cloud'
+  color: 'blue'
 runs:
   using: 'docker'
   image: 'Dockerfile'
