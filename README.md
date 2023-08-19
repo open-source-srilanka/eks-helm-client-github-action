@@ -11,7 +11,7 @@ steps:
     ---
 
   - name: Install & upgrade Helm chart on EKS
-    uses: open-source-srilanka/eks-helm-client-github-action@v0.1.0
+    uses: open-source-srilanka/eks-helm-client-github-action@v1.0.0
     env:
       REGION_CODE: ap-southeast-1
       CLUSTER_NAME: eks-client-cluster
