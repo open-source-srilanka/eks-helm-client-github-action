@@ -4,18 +4,23 @@ This Action allows you to install & upgrade Helm Charts in EKS. By using this Gi
 
 ## Usage
 
-```yaml
-- name: Deploy Helm Chart to EKS Cluster
-  uses: open-source-srilanka/eks-helm-client-github-action@v1.0.0
-  env:
-    REGION_CODE: <your-region-code>
-    CLUSTER_NAME: <your-cluster-name>
-  with:
-    args: >
+```
+steps:
+  - name: Setup AWS Credentials
+    uses: aws-actions/configure-aws-credentials@v2.2.0
+    ---
+
+  - name: Install & upgrade Helm chart on EKS
+    uses: open-source-srilanka/eks-helm-client-github-action@v0.1.0
+    env:
+      REGION_CODE: ap-southeast-1
+      CLUSTER_NAME: eks-client-cluster
+    with:
+      args: >
         bash -c "
-            helm repo add bitnami https://charts.bitnami.com/bitnami;
-            helm repo update;
-            helm install bitnami/mysql --generate-name
+          helm repo add bitnami https://charts.bitnami.com/bitnami;
+          helm repo update;
+          helm install bitnami/mysql --generate-name
         "
 ```
 
