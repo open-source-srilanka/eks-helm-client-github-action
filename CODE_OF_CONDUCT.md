@@ -1,128 +1,386 @@
-# Contributor Covenant Code of Conduct
+# Contributing to EKS Helm Client GitHub Action
 
-## Our Pledge
+We welcome contributions to the EKS Helm Client GitHub Action! This document outlines how to contribute to the project, including development setup, coding standards, and the contribution process.
 
-We as members, contributors, and leaders pledge to make participation in our
-community a harassment-free experience for everyone, regardless of age, body
-size, visible or invisible disability, ethnicity, sex characteristics, gender
-identity and expression, level of experience, education, socio-economic status,
-nationality, personal appearance, race, religion, or sexual identity
-and orientation.
+## 🚀 Getting Started
 
-We pledge to act and interact in ways that contribute to an open, welcoming,
-diverse, inclusive, and healthy community.
+### Prerequisites
 
-## Our Standards
+Before contributing, ensure you have:
 
-Examples of behavior that contributes to a positive environment for our
-community include:
+- **Docker** installed for building and testing the action
+- **Git** for version control
+- **AWS CLI** configured for testing with real EKS clusters
+- **kubectl** for Kubernetes cluster interaction
+- **Helm** for chart management
+- **ShellCheck** for shell script linting
+- **Hadolint** for Dockerfile linting
 
-* Demonstrating empathy and kindness toward other people
-* Being respectful of differing opinions, viewpoints, and experiences
-* Giving and gracefully accepting constructive feedback
-* Accepting responsibility and apologizing to those affected by our mistakes,
-  and learning from the experience
-* Focusing on what is best not just for us as individuals, but for the
-  overall community
+### Development Environment Setup
 
-Examples of unacceptable behavior include:
+1. **Fork and clone the repository**:
+   ```bash
+   git clone https://github.com/your-username/eks-helm-client-github-action.git
+   cd eks-helm-client-github-action
+   ```
 
-* The use of sexualized language or imagery, and sexual attention or
-  advances of any kind
-* Trolling, insulting or derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or email
-  address, without their explicit permission
-* Other conduct which could reasonably be considered inappropriate in a
-  professional setting
+2. **Set up development tools**:
+   ```bash
+   # Run the development setup script
+   ./scripts/setup-development.sh
+   ```
 
-## Enforcement Responsibilities
+3. **Build the Docker image**:
+   ```bash
+   docker build -t eks-helm-client:dev .
+   ```
 
-Community leaders are responsible for clarifying and enforcing our standards of
-acceptable behavior and will take appropriate and fair corrective action in
-response to any behavior that they deem inappropriate, threatening, offensive,
-or harmful.
+4. **Run basic tests**:
+   ```bash
+   ./scripts/test-scenarios.sh
+   ```
 
-Community leaders have the right and responsibility to remove, edit, or reject
-comments, commits, code, wiki edits, issues, and other contributions that are
-not aligned to this Code of Conduct, and will communicate reasons for moderation
-decisions when appropriate.
+## 🛠️ Development Guidelines
 
-## Scope
+### Code Style and Standards
 
-This Code of Conduct applies within all community spaces, and also applies when
-an individual is officially representing the community in public spaces.
-Examples of representing our community include using an official e-mail address,
-posting via an official social media account, or acting as an appointed
-representative at an online or offline event.
+#### Shell Scripts
+- Use **bash** for all shell scripts
+- Follow the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html)
+- Use `set -euo pipefail` at the beginning of scripts
+- Include comprehensive error handling
+- Add comments for complex logic
+- Use descriptive variable names
 
-## Enforcement
+#### Dockerfile
+- Follow [Dockerfile best practices](https://docs.docker.com/develop/dev-best-practices/)
+- Use multi-stage builds when appropriate
+- Minimize the number of layers
+- Use specific version tags for base images
+- Run containers as non-root user
+- Include security scanning in CI/CD
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-dinushchathurya21@gmail.com.
-All complaints will be reviewed and investigated promptly and fairly.
+#### Documentation
+- Use clear, concise language
+- Include examples for all features
+- Keep README.md up to date
+- Document breaking changes
+- Include security considerations
 
-All community leaders are obligated to respect the privacy and security of the
-reporter of any incident.
+### Testing Requirements
 
-## Enforcement Guidelines
+All contributions must include appropriate tests:
 
-Community leaders will follow these Community Impact Guidelines in determining
-the consequences for any action they deem in violation of this Code of Conduct:
+#### Unit Tests
+```bash
+# Test individual functions
+./scripts/test-validation.sh
+./scripts/test-backup.sh
+```
 
-### 1. Correction
+#### Integration Tests
+```bash
+# Test with real EKS clusters (requires AWS credentials)
+./scripts/test-integration.sh
+```
 
-**Community Impact**: Use of inappropriate language or other behavior deemed
-unprofessional or unwelcome in the community.
+#### Security Tests
+```bash
+# Run security scans
+./scripts/security-scan.sh
+```
 
-**Consequence**: A private, written warning from community leaders, providing
-clarity around the nature of the violation and an explanation of why the
-behavior was inappropriate. A public apology may be requested.
+### Pre-commit Checks
 
-### 2. Warning
+Before submitting a pull request, run these checks:
 
-**Community Impact**: A violation through a single incident or series
-of actions.
+```bash
+# Lint shell scripts
+find . -name "*.sh" -type f -exec shellcheck {} \;
 
-**Consequence**: A warning with consequences for continued behavior. No
-interaction with the people involved, including unsolicited interaction with
-those enforcing the Code of Conduct, for a specified period of time. This
-includes avoiding interactions in community spaces as well as external channels
-like social media. Violating these terms may lead to a temporary or
-permanent ban.
+# Lint Dockerfile
+hadolint Dockerfile
 
-### 3. Temporary Ban
+# Security scan
+trivy fs .
 
-**Community Impact**: A serious violation of community standards, including
-sustained inappropriate behavior.
+# Test the action
+docker run --rm \
+  -e INPUT_CLUSTER_NAME=test \
+  -e INPUT_REGION=us-west-2 \
+  -e INPUT_HELM_COMMANDS="helm version" \
+  eks-helm-client:dev
+```
 
-**Consequence**: A temporary ban from any sort of interaction or public
-communication with the community for a specified period of time. No public or
-private interaction with the people involved, including unsolicited interaction
-with those enforcing the Code of Conduct, is allowed during this period.
-Violating these terms may lead to a permanent ban.
+## 📝 Contribution Process
 
-### 4. Permanent Ban
+### 1. Issue Creation
 
-**Community Impact**: Demonstrating a pattern of violation of community
-standards, including sustained inappropriate behavior,  harassment of an
-individual, or aggression toward or disparagement of classes of individuals.
+Before starting work:
 
-**Consequence**: A permanent ban from any sort of public interaction within
-the community.
+- **Check existing issues** to avoid duplication
+- **Create a new issue** describing:
+  - The problem or feature request
+  - Expected behavior
+  - Current behavior (for bugs)
+  - Steps to reproduce (for bugs)
+  - Your environment details
 
-## Attribution
+### 2. Branch Naming
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage],
-version 2.0, available at
-https://www.contributor-covenant.org/version/2/0/code_of_conduct.html.
+Use descriptive branch names:
 
-Community Impact Guidelines were inspired by [Mozilla's code of conduct
-enforcement ladder](https://github.com/mozilla/diversity).
+- **Features**: `feature/add-secrets-manager-support`
+- **Bug fixes**: `fix/private-cluster-connection`
+- **Documentation**: `docs/update-security-guide`
+- **Chores**: `chore/update-dependencies`
 
-[homepage]: https://www.contributor-covenant.org
+### 3. Development Workflow
 
-For answers to common questions about this code of conduct, see the FAQ at
-https://www.contributor-covenant.org/faq. Translations are available at
-https://www.contributor-covenant.org/translations.
+1. **Create a feature branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes**:
+   - Write code following our style guidelines
+   - Add tests for new functionality
+   - Update documentation as needed
+
+3. **Test your changes**:
+   ```bash
+   # Build and test
+   docker build -t eks-helm-client:test .
+   ./scripts/test-scenarios.sh
+   
+   # Security scan
+   ./scripts/security-scan.sh
+   ```
+
+4. **Commit your changes**:
+   ```bash
+   git add .
+   git commit -m "feat: add AWS Secrets Manager support"
+   ```
+
+### 4. Commit Message Guidelines
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+- **feat**: New features
+- **fix**: Bug fixes
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, etc.)
+- **refactor**: Code refactoring
+- **test**: Adding or updating tests
+- **chore**: Build process or auxiliary tool changes
+
+Examples:
+```
+feat: add support for private EKS clusters
+fix: resolve timeout issues in Helm deployment
+docs: update README with new security features
+test: add integration tests for backup functionality
+```
+
+### 5. Pull Request Process
+
+1. **Push your branch**:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+2. **Create a pull request** with:
+   - **Clear title** describing the change
+   - **Detailed description** including:
+     - What changed
+     - Why it changed
+     - How to test it
+     - Any breaking changes
+   - **Link to related issues**
+   - **Screenshots** (if applicable)
+
+3. **PR Checklist**:
+   - [ ] Tests pass
+   - [ ] Documentation updated
+   - [ ] Security scan clean
+   - [ ] Backward compatibility maintained (or breaking change documented)
+   - [ ] CHANGELOG.md updated (for significant changes)
+
+## 🔒 Security Considerations
+
+### Reporting Security Issues
+
+**DO NOT** create public issues for security vulnerabilities. Instead:
+
+1. Email: [dinushchathurya21@gmail.com](mailto:dinushchathurya21@gmail.com)
+2. Include detailed information about the vulnerability
+3. Allow time for assessment and fix before public disclosure
+
+### Security Development Practices
+
+- **Never commit secrets** or credentials
+- **Use environment variables** for sensitive configuration
+- **Validate all inputs** to prevent injection attacks
+- **Follow least privilege principle** in IAM policies
+- **Regular security scanning** of dependencies and container images
+
+## 🧪 Testing Guide
+
+### Local Testing
+
+1. **Basic functionality test**:
+   ```bash
+   docker run --rm \
+     -e INPUT_CLUSTER_NAME=your-test-cluster \
+     -e INPUT_REGION=us-west-2 \
+     -e INPUT_HELM_COMMANDS="helm version" \
+     -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+     -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+     eks-helm-client:test
+   ```
+
+2. **Private cluster test**:
+   ```bash
+   docker run --rm \
+     -e INPUT_CLUSTER_NAME=private-cluster \
+     -e INPUT_REGION=us-west-2 \
+     -e INPUT_PRIVATE_CLUSTER=true \
+     -e INPUT_HELM_COMMANDS="helm version" \
+     eks-helm-client:test
+   ```
+
+3. **Security features test**:
+   ```bash
+   docker run --rm \
+     -e INPUT_CLUSTER_NAME=test-cluster \
+     -e INPUT_REGION=us-west-2 \
+     -e INPUT_VERIFY_CHARTS=true \
+     -e INPUT_VALIDATE_MANIFESTS=true \
+     -e INPUT_HELM_COMMANDS="helm version" \
+     eks-helm-client:test
+   ```
+
+### Integration Testing
+
+For integration tests with real AWS resources:
+
+1. **Set up test EKS cluster**
+2. **Configure IAM roles** with minimal permissions
+3. **Run comprehensive test suite**:
+   ```bash
+   export TEST_CLUSTER_NAME=eks-test-cluster
+   export TEST_REGION=us-west-2
+   ./scripts/integration-tests.sh
+   ```
+
+## 📚 Documentation Standards
+
+### Code Documentation
+
+- **Comment complex logic** in shell scripts
+- **Document environment variables** and their purposes
+- **Include usage examples** for new features
+- **Document security implications** of changes
+
+### User Documentation
+
+- **Update README.md** for new features
+- **Add examples** showing how to use new functionality
+- **Document breaking changes** in migration guides
+- **Include troubleshooting** for common issues
+
+## 🔄 Release Process
+
+### Version Management
+
+We follow [Semantic Versioning](https://semver.org/):
+
+- **MAJOR**: Breaking changes
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
+
+### Release Checklist
+
+- [ ] All tests pass
+- [ ] Documentation updated
+- [ ] CHANGELOG.md updated
+- [ ] Security scan clean
+- [ ] Version tags updated
+- [ ] Release notes prepared
+
+## 🤝 Community Guidelines
+
+### Code of Conduct
+
+This project adheres to our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+
+### Communication
+
+- **Be respectful** and constructive in discussions
+- **Provide clear context** when asking for help
+- **Help others** when you can
+- **Share knowledge** and best practices
+
+### Recognition
+
+Contributors will be recognized in:
+
+- **CONTRIBUTORS.md** file
+- **Release notes** for significant contributions
+- **GitHub contributors** section
+
+## 📞 Getting Help
+
+If you need help with development:
+
+1. **Check existing documentation** and issues
+2. **Create a discussion** on GitHub for questions
+3. **Join our community** channels (if available)
+4. **Email maintainers** for complex questions
+
+## 📋 Quick Reference
+
+### Useful Commands
+
+```bash
+# Build image
+docker build -t eks-helm-client:dev .
+
+# Run tests
+./scripts/test-scenarios.sh
+
+# Security scan
+./scripts/security-scan.sh
+
+# Lint shell scripts
+shellcheck scripts/*.sh entrypoint.sh
+
+# Lint Dockerfile
+hadolint Dockerfile
+
+# Clean up
+./scripts/cleanup.sh
+```
+
+### Directory Structure
+
+```
+├── Dockerfile              # Container definition
+├── action.yml             # GitHub Action metadata
+├── entrypoint.sh          # Main entry point
+├── config.template        # Kubeconfig template
+├── scripts/               # Helper scripts
+│   ├── validate-cluster.sh
+│   ├── backup-releases.sh
+│   ├── validate-manifests.sh
+│   ├── security-scan.sh
+│   ├── test-scenarios.sh
+│   ├── cleanup.sh
+│   └── setup-development.sh
+├── docs/                  # Additional documentation
+├── examples/              # Usage examples
+└── tests/                 # Test files
+```
+
+Thank you for contributing to the EKS Helm Client GitHub Action! Your contributions help make this tool better for everyone. 🚀

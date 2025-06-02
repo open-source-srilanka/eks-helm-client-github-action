@@ -1,0 +1,403 @@
+# Comprehensive examples for deploying private Helm packages
+# Copy these examples to your .github/workflows/ directory
+
+name: Private Helm Package Deployments
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  # Example 1: Simple AWS ECR deployment
+  deploy-ecr-simple:
+    name: Deploy from AWS ECR (Simple)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: github-actions-ecr-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy from ECR
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.EKS_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          auto-login-ecr: true
+          namespace: production
+          create-namespace: true
+          helm-commands: |
+            helm upgrade --install my-application \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/my-app \
+              --version 1.2.3 \
+              --set image.tag=${{ github.sha }} \
+              --set environment=production
+
+  # Example 2: GitHub Container Registry deployment
+  deploy-github-packages:
+    name: Deploy from GitHub Container Registry
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy from GHCR
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.EKS_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+          namespace: github-apps
+          create-namespace: true
+          helm-commands: |
+            # Deploy frontend application
+            helm upgrade --install frontend-app \
+              oci://ghcr.io/${{ github.repository_owner }}/frontend-chart \
+              --version 2.0.0 \
+              --set image.tag=${{ github.sha }} \
+              --set ingress.host=frontend.${{ vars.DOMAIN }}
+            
+            # Deploy backend service
+            helm upgrade --install backend-api \
+              oci://ghcr.io/${{ github.repository_owner }}/backend-chart \
+              --version 1.5.0 \
+              --set image.tag=${{ github.sha }} \
+              --set service.type=ClusterIP
+
+  # Example 3: Private repository with Secrets Manager
+  deploy-private-repo-secrets:
+    name: Deploy from Private Repo (Secrets Manager)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy from Private Repository
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.EKS_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          enable-secrets-manager: true
+          private-registry-url: https://charts.company.com
+          private-registry-username-secret: helm/company-charts/username
+          private-registry-password-secret: helm/company-charts/password
+          namespace: enterprise-apps
+          create-namespace: true
+          verify-charts: true
+          helm-commands: |
+            # Add private repository (authentication handled automatically)
+            helm repo add company-charts https://charts.company.com
+            helm repo update
+            
+            # Deploy enterprise application
+            helm upgrade --install enterprise-app company-charts/enterprise-application \
+              --version 3.1.0 \
+              --set-string database.url="$(aws-secret production/database-url)" \
+              --set-string api.key="$(aws-secret production/api-key)" \
+              --set image.tag=${{ github.sha }} \
+              --set replicas=3
+
+  # Example 4: Multi-registry deployment
+  deploy-multi-registry:
+    name: Deploy from Multiple Private Registries
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PRODUCTION_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Multi-Registry Deployment
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.PRODUCTION_CLUSTER }}
+          region: ${{ env.AWS_REGION }}
+          
+          # Multiple registry authentication
+          auto-login-ecr: true
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+          additional-registries: |
+            [
+              {
+                "url": "registry.company.com",
+                "username": "${{ secrets.COMPANY_REGISTRY_USER }}",
+                "password": "${{ secrets.COMPANY_REGISTRY_PASS }}"
+              },
+              {
+                "url": "harbor.internal.com",
+                "username": "${{ secrets.HARBOR_USER }}",
+                "password": "${{ secrets.HARBOR_PASS }}"
+              }
+            ]
+          
+          # Security and backup options
+          enable-secrets-manager: true
+          verify-charts: true
+          validate-manifests: true
+          enable-backup: true
+          backup-storage: ${{ vars.HELM_BACKUP_BUCKET }}
+          
+          namespace: production
+          atomic: true
+          wait: true
+          timeout: 15m0s
+          
+          helm-commands: |
+            # 1. Infrastructure from AWS ECR
+            helm upgrade --install nginx-ingress \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/nginx-ingress \
+              --namespace ingress-nginx \
+              --create-namespace \
+              --version 4.5.0 \
+              --set controller.service.type=LoadBalancer
+            
+            # 2. Monitoring from GitHub Packages
+            helm upgrade --install prometheus-stack \
+              oci://ghcr.io/${{ github.repository_owner }}/prometheus-stack \
+              --namespace monitoring \
+              --create-namespace \
+              --version 45.0.0
+            
+            # 3. Database from company registry
+            helm repo add company-db https://registry.company.com/charts
+            helm repo update
+            helm upgrade --install postgresql company-db/postgresql-ha \
+              --version 11.9.13 \
+              --set-string auth.password="$(aws-secret production/postgres-password)" \
+              --set persistence.size=100Gi
+            
+            # 4. Application monitoring from Harbor
+            helm repo add harbor-monitoring https://harbor.internal.com/chartrepo/monitoring
+            helm repo update
+            helm upgrade --install app-monitoring harbor-monitoring/custom-metrics \
+              --version 2.1.0 \
+              --set grafana.enabled=true
+            
+            # 5. Main application from ECR
+            helm upgrade --install main-application \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/main-app \
+              --version 2.3.1 \
+              --set image.tag=${{ github.sha }} \
+              --set environment=production \
+              --set replicaCount=5 \
+              --set-string database.host="$(aws-secret production/db-host)" \
+              --set-string redis.url="$(aws-secret production/redis-url)"
+
+  # Example 5: Private cluster with private charts
+  deploy-private-cluster:
+    name: Deploy to Private Cluster with Private Charts
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: secure-production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PRIVATE_CLUSTER_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to Private Cluster
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.PRIVATE_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          
+          # Private cluster configuration
+          private-cluster: true
+          vpc-endpoint: ${{ vars.PRIVATE_VPC_ENDPOINT }}
+          
+          # Private registry authentication
+          auto-login-ecr: true
+          enable-secrets-manager: true
+          private-registry-url: https://secure-charts.company.com
+          private-registry-username-secret: secure-charts/username
+          private-registry-password-secret: secure-charts/password
+          
+          # Enhanced security
+          verify-charts: true
+          validate-manifests: true
+          enable-backup: true
+          backup-storage: ${{ vars.SECURE_BACKUP_BUCKET }}
+          
+          namespace: secure-production
+          create-namespace: true
+          atomic: true
+          wait: true
+          timeout: 20m0s
+          debug: true
+          
+          helm-commands: |
+            # Deploy security-critical applications
+            helm upgrade --install security-gateway \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/secure/charts/security-gateway \
+              --version 1.0.0 \
+              --set-string tls.cert="$(aws-secret secure/tls-cert)" \
+              --set-string tls.key="$(aws-secret secure/tls-key)" \
+              --verify
+            
+            # Deploy from verified private repository
+            helm repo add secure-charts https://secure-charts.company.com
+            helm repo update
+            helm upgrade --install secure-application secure-charts/secure-app \
+              --version 2.1.0 \
+              --set-string encryption.key="$(aws-secret secure/encryption-key)" \
+              --set image.tag=${{ github.sha }} \
+              --verify
+
+  # Example 6: Development environment with staging charts
+  deploy-development:
+    name: Deploy Development Environment
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEV_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy Development Charts
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.DEV_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          auto-login-ecr: true
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+          namespace: development
+          create-namespace: true
+          dry-run: false
+          debug: true
+          helm-commands: |
+            # Deploy development version from ECR
+            helm upgrade --install dev-app \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/app \
+              --version 1.0.0-dev \
+              --set image.tag=dev-${{ github.sha }} \
+              --set environment=development \
+              --set resources.requests.cpu=100m \
+              --set resources.requests.memory=128Mi
+            
+            # Deploy development tools from GitHub
+            helm upgrade --install dev-tools \
+              oci://ghcr.io/${{ github.repository_owner }}/dev-tools \
+              --version latest \
+              --set debug.enabled=true
+
+  # Example 7: Chart validation and testing
+  validate-charts:
+    name: Validate Private Charts
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate Charts
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.TEST_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          auto-login-ecr: true
+          namespace: chart-validation
+          create-namespace: true
+          dry-run: true
+          validate-manifests: true
+          debug: true
+          helm-commands: |
+            # Validate chart deployment without actually deploying
+            helm upgrade --install test-app \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/app \
+              --version ${{ github.sha }} \
+              --set image.tag=test-${{ github.sha }} \
+              --set environment=test
+            
+            # Template validation
+            helm template test-release \
+              oci://123456789012.dkr.ecr.us-west-2.amazonaws.com/charts/app \
+              --version ${{ github.sha }} \
+              --validate
+
+  # Example 8: Rollback scenario
+  rollback-deployment:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Rollback Application
+        uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+        with:
+          cluster-name: ${{ vars.EKS_CLUSTER_NAME }}
+          region: ${{ env.AWS_REGION }}
+          auto-login-ecr: true
+          namespace: production
+          helm-commands: |
+            # Check current release
+            helm list -n production
+            helm history my-application -n production
+            
+            # Rollback to previous version
+            helm rollback my-application 0 -n production
+            
+            # Verify rollback
+            helm status my-application -n production

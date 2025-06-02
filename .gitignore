@@ -1,0 +1,121 @@
+# EKS Helm Client GitHub Action .gitignore
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+
+# Build artifacts
+dist/
+build/
+*.tar.gz
+*.zip
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Kubernetes and Helm
+kubeconfig*
+*.kubeconfig
+helm-output.txt
+helm-releases-*.json
+helm-releases-*.yaml
+
+# AWS
+.aws/
+aws-credentials
+*.pem
+*.key
+
+# Secrets and sensitive data
+.env
+.env.local
+.env.production
+.env.test
+secrets/
+*.secret
+**/secrets/**
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+.pytest_cache/
+
+# Backup files
+backup/
+*.backup
+*.bak
+
+# Cache directories
+.cache/
+node_modules/
+*.cache
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+config.local
+local-config/
+test-cluster-config/
+
+# Helm specific
+charts/*.tgz
+requirements.lock
+Chart.lock
+
+# Terraform (if used for infrastructure)
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+.terraform.lock.hcl
+
+# Vagrant (if used for development)
+.vagrant/
+
+# Local development
+dev/
+local/
+scratch/
+
+# Documentation build
+site/
+docs/_build/
+
+# Security scan results
+*.sarif
+security-scan-results/
+
+# Package managers
+package-lock.json
+yarn.lock
+Pipfile.lock
+
+# CI/CD specific
+.github/workflows/local-*
