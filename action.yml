@@ -1,12 +1,177 @@
 name: 'EKS Helm Client'
 description: 'Helm client to install and upgrade Helm chart on EKS cluster'
+author: 'ProjectOSS(Dinush Chathurya)'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
+
+inputs:
+  # Core Configuration
+  cluster-name:
+    description: 'EKS cluster name'
+    required: true
+  
+  region:
+    description: 'AWS region where the EKS cluster is located'
+    required: true
+  
+  # Helm Commands
+  helm-commands:
+    description: 'Helm commands to execute (replaces args for clarity)'
+    required: true
+  
+  # Authentication & Access
+  role-arn:
+    description: 'IAM role ARN to assume for cluster access (for IRSA or cross-account access)'
+    required: false
+  
+  assume-role-session-name:
+    description: 'Session name when assuming role'
+    required: false
+    default: 'github-actions-helm-deploy'
+  
+  # Private Cluster Support
+  private-cluster:
+    description: 'Set to true if cluster is private (enables additional networking considerations)'
+    required: false
+    default: 'false'
+  
+  bastion-host:
+    description: 'Bastion host for private cluster access (if applicable)'
+    required: false
+  
+  bastion-user:
+    description: 'Username for bastion host access'
+    required: false
+    default: 'ec2-user'
+  
+  vpc-endpoint:
+    description: 'VPC endpoint URL for private API access'
+    required: false
+  
+  # Private Helm Repository Support
+  private-registry-url:
+    description: 'URL of private Helm registry (supports OCI and traditional repositories)'
+    required: false
+  
+  private-registry-username:
+    description: 'Username for private registry authentication'
+    required: false
+  
+  private-registry-password:
+    description: 'Password for private registry authentication (use secrets)'
+    required: false
+  
+  private-registry-username-secret:
+    description: 'AWS Secrets Manager secret name containing registry username'
+    required: false
+  
+  private-registry-password-secret:
+    description: 'AWS Secrets Manager secret name containing registry password'
+    required: false
+  
+  ecr-registry:
+    description: 'AWS ECR registry URL (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com)'
+    required: false
+  
+  auto-login-ecr:
+    description: 'Automatically login to AWS ECR for private charts'
+    required: false
+    default: 'false'
+  
+  github-packages-token:
+    description: 'GitHub token for accessing GitHub Container Registry packages'
+    required: false
+  
+  additional-registries:
+    description: 'JSON array of additional private registries [{url, username, password}]'
+    required: false
+  
+  # Helm Configuration
+  namespace:
+    description: 'Kubernetes namespace for Helm operations'
+    required: false
+    default: 'default'
+  
+  create-namespace:
+    description: 'Create namespace if it does not exist'
+    required: false
+    default: 'false'
+  
+  timeout:
+    description: 'Timeout for Helm operations (e.g., 10m0s)'
+    required: false
+    default: '5m0s'
+  
+  atomic:
+    description: 'Use atomic flag for Helm operations (rollback on failure)'
+    required: false
+    default: 'true'
+  
+  wait:
+    description: 'Wait for Helm release to be ready'
+    required: false
+    default: 'true'
+  
+  # Security Options
+  verify-charts:
+    description: 'Verify Helm chart signatures'
+    required: false
+    default: 'false'
+  
+  enable-secrets-manager:
+    description: 'Enable AWS Secrets Manager integration'
+    required: false
+    default: 'false'
+  
+  secrets-manager-region:
+    description: 'AWS region for Secrets Manager (defaults to cluster region)'
+    required: false
+  
+  # Debugging & Logging
+  debug:
+    description: 'Enable debug logging'
+    required: false
+    default: 'false'
+  
+  dry-run:
+    description: 'Perform a dry run (helm template + kubectl dry-run)'
+    required: false
+    default: 'false'
+  
+  # Validation
+  validate-manifests:
+    description: 'Validate Kubernetes manifests before deployment'
+    required: false
+    default: 'true'
+  
+  kubeval-schema-location:
+    description: 'Custom schema location for kubeval'
+    required: false
+  
+  # Backup & Recovery
+  enable-backup:
+    description: 'Create backup before deployment'
+    required: false
+    default: 'false'
+  
+  backup-storage:
+    description: 'S3 bucket for storing backups'
+    required: false
+
+outputs:
+  helm-release-name:
+    description: 'Name of the deployed Helm release'
+  
+  helm-release-revision:
+    description: 'Revision number of the deployed Helm release'
+  
+  kubernetes-resources:
+    description: 'List of created/updated Kubernetes resources'
+  
+  deployment-status:
+    description: 'Status of the deployment (success/failure)'
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
-inputs:
-  args:
-    description: Commands need to install and upgrade Helm chart
-    required: true
