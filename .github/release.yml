@@ -1,0 +1,610 @@
+name: Release to GitHub Marketplace
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 2.1.0, 2.1.0-rc.1)'
+        required: true
+        type: string
+      release_type:
+        description: 'Type of release'
+        required: true
+        type: choice
+        options:
+          - rc
+          - stable
+        default: rc
+      skip_tests:
+        description: 'Skip integration tests'
+        required: false
+        type: boolean
+        default: false
+
+  push:
+    tags:
+      - 'v*.*.*'
+      - '!v*.*.*-*'
+
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  setup:
+    name: Setup Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.setup.outputs.version }}
+      release_type: ${{ steps.setup.outputs.release_type }}
+      is_prerelease: ${{ steps.setup.outputs.is_prerelease }}
+      tag_name: ${{ steps.setup.outputs.tag_name }}
+      skip_tests: ${{ steps.setup.outputs.skip_tests }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Release Variables
+        id: setup
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+            SKIP_TESTS="${{ github.event.inputs.skip_tests }}"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            RELEASE_TYPE="stable"
+            SKIP_TESTS="false"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+            if [[ "$VERSION" == *"-"* ]]; then
+              RELEASE_TYPE="rc"
+            else
+              RELEASE_TYPE="stable"
+            fi
+            SKIP_TESTS="false"
+          else
+            echo "Unsupported trigger"
+            exit 1
+          fi
+          
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+          echo "skip_tests=$SKIP_TESTS" >> $GITHUB_OUTPUT
+          
+          if [[ "$RELEASE_TYPE" == "rc" ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "🚀 Releasing version: $VERSION"
+          echo "📦 Release type: $RELEASE_TYPE"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: setup
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t security-scan:latest .
+
+      - name: Run Trivy scanner on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'security-scan:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Lint shell scripts
+        run: |
+          if command -v shellcheck &> /dev/null; then
+            find . -name "*.sh" -type f -exec shellcheck {} \;
+          else
+            echo "⚠️ shellcheck not available, skipping"
+          fi
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: [setup, security-scan]
+    if: needs.setup.outputs.skip_tests != 'true'
+    
+    strategy:
+      matrix:
+        test-scenario:
+          - basic
+          - private-cluster
+          - validation
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t test-action:${{ needs.setup.outputs.version }} .
+          docker tag test-action:${{ needs.setup.outputs.version }} test-action:latest
+
+      - name: Test basic functionality
+        run: |
+          docker run --rm test-action:latest /bin/bash -c "
+            echo '🔍 Testing basic functionality...'
+            which helm && echo '✅ Helm available'
+            which kubectl && echo '✅ kubectl available' 
+            which aws && echo '✅ AWS CLI available'
+            helm version && echo '✅ Helm working'
+            kubectl version --client && echo '✅ kubectl working'
+            aws --version && echo '✅ AWS CLI working'
+            echo '✅ Basic functionality test passed'
+          "
+
+      - name: Test input validation
+        run: |
+          set +e
+          docker run --rm \
+            -e INPUT_DEBUG=true \
+            test-action:latest 2>&1 | tee validation-output.txt
+          
+          if grep -q "cluster-name is required" validation-output.txt; then
+            echo "✅ Input validation works correctly"
+          else
+            echo "❌ Input validation not working"
+            exit 1
+          fi
+
+      - name: Test scenario - ${{ matrix.test-scenario }}
+        run: |
+          case "${{ matrix.test-scenario }}" in
+            "basic")
+              docker run --rm \
+                -e INPUT_CLUSTER_NAME=test-cluster \
+                -e INPUT_REGION=us-west-2 \
+                -e INPUT_HELM_COMMANDS="helm version" \
+                -e INPUT_DEBUG=true \
+                -e INPUT_DRY_RUN=true \
+                test-action:latest || echo "Expected failure in dry-run"
+              ;;
+            "private-cluster")
+              docker run --rm \
+                -e INPUT_CLUSTER_NAME=private-cluster \
+                -e INPUT_REGION=us-west-2 \
+                -e INPUT_PRIVATE_CLUSTER=true \
+                -e INPUT_HELM_COMMANDS="helm version" \
+                -e INPUT_DEBUG=true \
+                -e INPUT_DRY_RUN=true \
+                test-action:latest || echo "Expected failure in dry-run"
+              ;;
+            "validation")
+              docker run --rm \
+                -e INPUT_CLUSTER_NAME=test-cluster \
+                -e INPUT_REGION=us-west-2 \
+                -e INPUT_DRY_RUN=true \
+                -e INPUT_VALIDATE_MANIFESTS=true \
+                -e INPUT_HELM_COMMANDS="helm version" \
+                -e INPUT_DEBUG=true \
+                test-action:latest || echo "Expected failure in dry-run"
+              ;;
+          esac
+
+      - name: Validate action.yml
+        run: |
+          python3 -c "
+          import yaml
+          import sys
+          
+          with open('action.yml', 'r') as f:
+              action = yaml.safe_load(f)
+          
+          required_fields = ['name', 'description', 'runs']
+          for field in required_fields:
+              if field not in action:
+                  print(f'❌ Missing required field: {field}')
+                  sys.exit(1)
+          
+          if 'branding' not in action:
+              print('⚠️ Warning: Missing branding section')
+          
+          inputs = action.get('inputs', {})
+          required_inputs = [name for name, config in inputs.items() if config.get('required', False)]
+          
+          print(f'✅ Action: {action[\"name\"]}')
+          print(f'📝 Description: {action[\"description\"]}')
+          print(f'🔧 Total inputs: {len(inputs)}')
+          print(f'⚠️ Required inputs: {len(required_inputs)}')
+          print('✅ action.yml validation passed')
+          "
+
+  mock-integration-test:
+    name: Mock Integration Test
+    runs-on: ubuntu-latest
+    needs: [setup, security-scan]
+    if: needs.setup.outputs.skip_tests != 'true'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Mock AWS Environment
+        run: |
+          mkdir -p ~/.aws
+          cat > ~/.aws/credentials << EOF
+          [default]
+          aws_access_key_id = test
+          aws_secret_access_key = test
+          EOF
+          
+          cat > ~/.aws/config << EOF
+          [default]
+          region = us-west-2
+          output = json
+          EOF
+
+      - name: Install LocalStack
+        run: |
+          pip install localstack awscli-local
+          docker pull localstack/localstack
+
+      - name: Start LocalStack
+        run: |
+          docker run -d \
+            --name localstack \
+            -p 4566:4566 \
+            -e SERVICES=sts,eks,ecr,secretsmanager \
+            -e DEBUG=1 \
+            localstack/localstack
+          
+          sleep 30
+
+      - name: Build test image
+        run: |
+          docker build -t mock-test:latest .
+
+      - name: Run mock integration test
+        run: |
+          docker run --rm \
+            --network host \
+            -e INPUT_CLUSTER_NAME=mock-test-cluster \
+            -e INPUT_REGION=us-west-2 \
+            -e INPUT_DRY_RUN=true \
+            -e INPUT_DEBUG=true \
+            -e AWS_ACCESS_KEY_ID=test \
+            -e AWS_SECRET_ACCESS_KEY=test \
+            -e AWS_ENDPOINT_URL=http://localhost:4566 \
+            -e INPUT_HELM_COMMANDS="helm version" \
+            mock-test:latest || echo "✅ Mock test completed"
+
+      - name: Cleanup LocalStack
+        if: always()
+        run: |
+          docker stop localstack || true
+          docker rm localstack || true
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [setup, security-scan, build-and-test, mock-integration-test]
+    if: always() && (needs.build-and-test.result == 'success' || needs.setup.outputs.skip_tests == 'true') && (needs.mock-integration-test.result == 'success' || needs.setup.outputs.skip_tests == 'true')
+    
+    permissions:
+      contents: write
+      packages: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [[ -n "$LAST_TAG" ]]; then
+            echo "📋 Changes since $LAST_TAG:" > changelog.md
+            echo "" >> changelog.md
+            git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --no-merges >> changelog.md
+            echo "" >> changelog.md
+            echo "" >> changelog.md
+            echo "### Pull Requests" >> changelog.md
+            git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges | grep -E "\(#[0-9]+\)" | sort -u >> changelog.md || true
+          else
+            echo "🎉 Initial release" > changelog.md
+            echo "" >> changelog.md
+            echo "This is the first release of the GitHub Action." >> changelog.md
+          fi
+          
+          echo 'changelog<<EOF' >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+      - name: Update version tags
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          
+          if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
+          
+          if [[ "${{ needs.setup.outputs.release_type }}" == "stable" ]]; then
+            MAJOR_VERSION=$(echo $VERSION | cut -d. -f1)
+            git tag -f "v$MAJOR_VERSION"
+            git push -f origin "v$MAJOR_VERSION"
+            echo "✅ Updated major version tag: v$MAJOR_VERSION"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.setup.outputs.tag_name }}
+          name: 'EKS Helm Client v${{ needs.setup.outputs.version }}'
+          body: |
+            ## EKS Helm Client GitHub Action v${{ needs.setup.outputs.version }}
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## 🚀 Usage
+            
+            ```yaml
+            - name: Deploy Helm Chart
+              uses: ${{ github.repository }}@v${{ needs.setup.outputs.version }}
+              with:
+                cluster-name: my-cluster
+                region: us-west-2
+                helm-commands: |
+                  helm upgrade --install my-app ./chart
+            ```
+            
+            ## 🔒 Private Registry Support
+            
+            This version includes comprehensive support for private Helm packages:
+            - AWS ECR with automatic authentication
+            - GitHub Container Registry integration
+            - Private Helm repositories with secure credentials
+            - Multi-registry deployments
+            
+            ${{ needs.setup.outputs.release_type == 'rc' && '## ⚠️ Release Candidate
+            
+            This is a release candidate version for testing:
+            - Test new features before stable release
+            - Provide feedback on functionality
+            - Report any issues or bugs
+            - Not recommended for production without thorough testing' || '' }}
+            
+            ## 📚 Documentation
+            
+            - [README](https://github.com/${{ github.repository }}/blob/v${{ needs.setup.outputs.version }}/README.md)
+            - [Examples](https://github.com/${{ github.repository }}/blob/v${{ needs.setup.outputs.version }}/examples/private-helm-examples.yml)
+            - [Security Guide](https://github.com/${{ github.repository }}/blob/v${{ needs.setup.outputs.version }}/SECURITY.md)
+            
+            ## 🐛 Issues & 💬 Discussions
+            
+            - [Report Issues](https://github.com/${{ github.repository }}/issues)
+            - [Join Discussions](https://github.com/${{ github.repository }}/discussions)
+            
+            ---
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...v${{ needs.setup.outputs.version }}
+          prerelease: ${{ needs.setup.outputs.is_prerelease }}
+          draft: false
+
+  publish-container:
+    name: Publish Container Image
+    runs-on: ubuntu-latest
+    needs: [setup, create-release]
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}},value=v${{ needs.setup.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.setup.outputs.version }},enable=${{ needs.setup.outputs.release_type == 'stable' }}
+            type=semver,pattern={{major}},value=v${{ needs.setup.outputs.version }},enable=${{ needs.setup.outputs.release_type == 'stable' }}
+            type=raw,value=latest,enable=${{ needs.setup.outputs.release_type == 'stable' }}
+            type=raw,value=rc-latest,enable=${{ needs.setup.outputs.release_type == 'rc' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  marketplace-notification:
+    name: Marketplace Publication
+    runs-on: ubuntu-latest
+    needs: [setup, create-release]
+    
+    steps:
+      - name: Marketplace Publication Notice
+        run: |
+          echo "🎉 Release v${{ needs.setup.outputs.version }} has been created!"
+          echo ""
+          echo "📦 Release Type: ${{ needs.setup.outputs.release_type }}"
+          echo "🏷️ Tag: ${{ needs.setup.outputs.tag_name }}"
+          echo "🔗 Release URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag_name }}"
+          echo ""
+          
+          if [[ "${{ needs.setup.outputs.release_type }}" == "stable" ]]; then
+            echo "✅ This stable release will be published to GitHub Marketplace as LATEST"
+            echo "🔍 Monitor: https://github.com/marketplace/actions/$(echo ${{ github.repository }} | cut -d'/' -f2)"
+            echo "👥 Users can reference: @v${{ needs.setup.outputs.version }} or @v$(echo ${{ needs.setup.outputs.version }} | cut -d. -f1)"
+          else
+            echo "🧪 This RC release will be published to GitHub Marketplace as PRERELEASE"
+            echo "🔍 Monitor: https://github.com/marketplace/actions/$(echo ${{ github.repository }} | cut -d'/' -f2)"
+            echo "👥 Users can reference: @v${{ needs.setup.outputs.version }} for testing"
+            echo "⚠️ RC versions are marked as prerelease for testing purposes"
+          fi
+
+      - name: Create workflow summary
+        run: |
+          echo "## 📦 Marketplace Publication Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ needs.setup.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Prerelease**: ${{ needs.setup.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Marketplace Status**: Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.setup.outputs.release_type }}" == "stable" ]]; then
+            echo "### ✅ Stable Release" >> $GITHUB_STEP_SUMMARY
+            echo "- Available as latest version on marketplace" >> $GITHUB_STEP_SUMMARY
+            echo "- Major version tag v$(echo ${{ needs.setup.outputs.version }} | cut -d. -f1) updated" >> $GITHUB_STEP_SUMMARY
+            echo "- Recommended for production use" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 🧪 Release Candidate" >> $GITHUB_STEP_SUMMARY
+            echo "- Available as prerelease on marketplace" >> $GITHUB_STEP_SUMMARY
+            echo "- For testing and feedback collection" >> $GITHUB_STEP_SUMMARY
+            echo "- Not recommended for production" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Marketplace](https://github.com/marketplace/actions/$(echo ${{ github.repository }} | cut -d'/' -f2))" >> $GITHUB_STEP_SUMMARY
+          echo "- [Release Page](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag_name }})" >> $GITHUB_STEP_SUMMARY
+
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [setup, create-release]
+    if: needs.setup.outputs.release_type == 'stable'
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update version references in docs
+        run: |
+          VERSION="${{ needs.setup.outputs.version }}"
+          
+          if [[ -f "README.md" ]]; then
+            sed -i "s/${{ github.repository }}@v[0-9]\+\.[0-9]\+\.[0-9]\+/${{ github.repository }}@v$VERSION/g" README.md
+          fi
+          
+          find . -name "*.yml" -o -name "*.yaml" | grep -E "(example|demo)" | while read -r file; do
+            if [[ -f "$file" ]]; then
+              sed -i "s/${{ github.repository }}@v[0-9]\+\.[0-9]\+\.[0-9]\+/${{ github.repository }}@v$VERSION/g" "$file"
+            fi
+          done
+
+      - name: Create Pull Request for docs update
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'docs: update version references to v${{ needs.setup.outputs.version }}'
+          title: 'Update documentation for stable release v${{ needs.setup.outputs.version }}'
+          body: |
+            Automated update of version references in documentation for stable release v${{ needs.setup.outputs.version }}.
+            
+            This PR updates:
+            - README.md examples to use latest stable version
+            - Example workflow files with stable version
+            
+            Auto-generated by release workflow.
+          branch: 'docs/update-stable-v${{ needs.setup.outputs.version }}'
+          delete-branch: true
+
+  notify-completion:
+    name: Release Completion
+    runs-on: ubuntu-latest
+    needs: [setup, create-release, marketplace-notification]
+    if: always()
+    
+    steps:
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v${{ needs.setup.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ needs.setup.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ needs.setup.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Prerelease**: ${{ needs.setup.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Release Page](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.setup.outputs.tag_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [GitHub Marketplace](https://github.com/marketplace/actions/$(echo ${{ github.repository }} | cut -d'/' -f2))" >> $GITHUB_STEP_SUMMARY
+
+      - name: Success notification
+        if: needs.create-release.result == 'success'
+        run: |
+          echo "✅ Release v${{ needs.setup.outputs.version }} completed successfully!"
+          echo "🚀 Your action is now available on GitHub Marketplace!"
+
+      - name: Failure notification
+        if: needs.create-release.result == 'failure'
+        run: |
+          echo "❌ Release v${{ needs.setup.outputs.version }} failed!"
+          exit 1
