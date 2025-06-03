@@ -3,6 +3,9 @@ FROM projectoss/alpine:3.20.0
 # Install security updates first
 RUN apk update && apk upgrade
 
+# Install glibc compatibility for AWS CLI v2
+RUN apk add --no-cache gcompat
+
 # Install required packages
 RUN apk add --no-cache \
     ca-certificates \
@@ -16,13 +19,15 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     unzip \
-    groff
+    groff \
+    libc6-compat
 
-# Install AWS CLI using the official installer (more reliable than pip)
+# Install AWS CLI v2 with glibc compatibility
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip awscliv2.zip \
     && ./aws/install \
-    && rm -rf aws awscliv2.zip
+    && rm -rf aws awscliv2.zip \
+    && aws --version
 
 # Set versions - update these regularly
 ARG KUBECTL_VERSION="1.30.0"
@@ -36,17 +41,11 @@ RUN curl -L "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubec
     && chmod +x /usr/local/bin/kubectl \
     && rm kubectl.sha256
 
-# Install Helm with better error handling
-RUN set -ex \
-    && HELM_URL="https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
-    && echo "Downloading Helm from: $HELM_URL" \
-    && curl -fsSL "$HELM_URL" -o helm.tar.gz \
-    && echo "Downloaded Helm, extracting..." \
-    && tar -xzf helm.tar.gz \
-    && mv linux-amd64/helm /usr/local/bin/helm \
-    && chmod +x /usr/local/bin/helm \
-    && rm -rf linux-amd64 helm.tar.gz \
-    && helm version --short
+# Install Helm using official installer script (more reliable)
+RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
+    && chmod 700 get_helm.sh \
+    && ./get_helm.sh --version v${HELM_VERSION} \
+    && rm get_helm.sh
 
 # Install kubeseal for sealed secrets support
 RUN curl -L "https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION}/kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz" -o kubeseal.tar.gz \
