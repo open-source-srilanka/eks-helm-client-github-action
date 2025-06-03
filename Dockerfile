@@ -3,9 +3,6 @@ FROM projectoss/alpine:3.20.0
 # Install security updates first
 RUN apk update && apk upgrade
 
-# Install glibc compatibility for AWS CLI v2
-RUN apk add --no-cache gcompat
-
 # Install required packages
 RUN apk add --no-cache \
     ca-certificates \
@@ -19,15 +16,15 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     unzip \
-    groff \
-    libc6-compat
+    groff
 
-# Install AWS CLI v2 with glibc compatibility
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && rm -rf aws awscliv2.zip \
-    && aws --version
+# Install AWS CLI v1 using pip (more compatible with Alpine)
+RUN pip3 install --break-system-packages --no-cache-dir awscli
+
+# Alternative: Install Python packages in virtual environment if needed
+# RUN python3 -m venv /opt/venv \
+#     && /opt/venv/bin/pip install --no-cache-dir boto3 \
+#     && ln -s /opt/venv/bin/python3 /usr/local/bin/python-venv
 
 # Set versions - update these regularly
 ARG KUBECTL_VERSION="1.30.0"
