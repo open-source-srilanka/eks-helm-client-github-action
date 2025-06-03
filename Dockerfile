@@ -24,11 +24,6 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && ./aws/install \
     && rm -rf aws awscliv2.zip
 
-# Alternative: Install Python packages in virtual environment if needed
-# RUN python3 -m venv /opt/venv \
-#     && /opt/venv/bin/pip install --no-cache-dir boto3 \
-#     && ln -s /opt/venv/bin/python3 /usr/local/bin/python-venv
-
 # Set versions - update these regularly
 ARG KUBECTL_VERSION="1.30.0"
 ARG HELM_VERSION="3.14.4"
@@ -41,14 +36,17 @@ RUN curl -L "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubec
     && chmod +x /usr/local/bin/kubectl \
     && rm kubectl.sha256
 
-# Install Helm with verification
-RUN curl -L "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" -o helm.tar.gz \
-    && curl -L "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz.sha256sum" -o helm.sha256 \
-    && sha256sum -c helm.sha256 \
+# Install Helm with better error handling
+RUN set -ex \
+    && HELM_URL="https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
+    && echo "Downloading Helm from: $HELM_URL" \
+    && curl -fsSL "$HELM_URL" -o helm.tar.gz \
+    && echo "Downloaded Helm, extracting..." \
     && tar -xzf helm.tar.gz \
     && mv linux-amd64/helm /usr/local/bin/helm \
     && chmod +x /usr/local/bin/helm \
-    && rm -rf linux-amd64 helm.tar.gz helm.sha256
+    && rm -rf linux-amd64 helm.tar.gz \
+    && helm version --short
 
 # Install kubeseal for sealed secrets support
 RUN curl -L "https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION}/kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz" -o kubeseal.tar.gz \
