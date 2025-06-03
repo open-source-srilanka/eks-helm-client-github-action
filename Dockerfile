@@ -1,4 +1,4 @@
-FROM projectoss/alpine:3.20
+FROM projectoss/alpine:3.20.0
 
 # Install security updates first
 RUN apk update && apk upgrade
