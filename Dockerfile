@@ -13,9 +13,21 @@ RUN apk add --no-cache \
     curl \
     gettext \
     openssl \
-    py3-pip \
     python3 \
-    && pip3 install --no-cache-dir awscli boto3
+    py3-pip \
+    unzip \
+    groff
+
+# Install AWS CLI using the official installer (more reliable than pip)
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install \
+    && rm -rf aws awscliv2.zip
+
+# Alternative: Install Python packages in virtual environment if needed
+# RUN python3 -m venv /opt/venv \
+#     && /opt/venv/bin/pip install --no-cache-dir boto3 \
+#     && ln -s /opt/venv/bin/python3 /usr/local/bin/python-venv
 
 # Set versions - update these regularly
 ARG KUBECTL_VERSION="1.30.0"
