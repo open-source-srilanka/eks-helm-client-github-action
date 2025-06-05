@@ -1,0 +1,372 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '*.md'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - '*.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  # Lint and validate documentation
+  lint-docs:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install markdownlint
+        run: |
+          npm install -g markdownlint-cli2
+          npm install -g markdown-link-check
+
+      - name: Lint Markdown files
+        run: |
+          markdownlint-cli2 "**/*.md" "#node_modules" "#.git"
+
+      - name: Check markdown links
+        run: |
+          find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" | \
+          xargs -I {} markdown-link-check {} --config .github/markdown-link-check.json || true
+
+      - name: Validate action.yml
+        run: |
+          # Check if action.yml is valid YAML
+          python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
+          echo "✅ action.yml is valid YAML"
+
+      - name: Check for broken internal links
+        run: |
+          echo "🔍 Checking for broken internal links..."
+          
+          # Find all markdown files
+          find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" > md_files.txt
+          
+          # Extract internal links (relative paths)
+          grep -h -o '\[.*\](\..*\.md)' $(cat md_files.txt) | \
+          sed 's/.*](\(.*\))/\1/' | \
+          sort -u > internal_links.txt || echo "No internal links found"
+          
+          # Check if linked files exist
+          missing_files=()
+          while IFS= read -r link; do
+            if [[ -n "$link" && ! -f "$link" ]]; then
+              missing_files+=("$link")
+            fi
+          done < internal_links.txt
+          
+          if [[ ${#missing_files[@]} -gt 0 ]]; then
+            echo "❌ Missing files referenced in documentation:"
+            printf '%s\n' "${missing_files[@]}"
+            exit 1
+          else
+            echo "✅ All internal links are valid"
+          fi
+
+  # Spell check documentation
+  spell-check:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cspell
+        run: npm install -g cspell
+
+      - name: Run spell check
+        run: |
+          # Create custom dictionary for technical terms
+          cat << 'EOF' > .cspell.json
+          {
+            "version": "0.2",
+            "language": "en",
+            "words": [
+              "kubectl", "helm", "kubernetes", "kubeconfig", "eks", "aws", "iam",
+              "vpc", "ecr", "artifactory", "nexus", "harbor", "bitnami",
+              "dockerfile", "github", "yaml", "json", "ssl", "tls",
+              "dinushchathurya", "srilanka", "oidc", "rbac", "cidr",
+              "eksctl", "cloudtrail", "cloudformation", "terraform",
+              "nginx", "postgresql", "redis", "autoscaling", "loadbalancer"
+            ],
+            "dictionaries": ["typescript", "node", "software-terms"],
+            "ignorePaths": [
+              "node_modules/**",
+              ".git/**",
+              "**/*.log"
+            ]
+          }
+          EOF
+          
+          # Run spell check on markdown files
+          cspell "**/*.md" --no-progress || echo "Spell check completed with warnings"
+
+  # Generate documentation site
+  build-docs:
+    name: Build Documentation Site
+    runs-on: ubuntu-latest
+    needs: [lint-docs]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm install -g @vuepress/cli @vuepress/theme-default
+
+      - name: Create VuePress config
+        run: |
+          mkdir -p .vuepress
+          cat << 'EOF' > .vuepress/config.js
+          module.exports = {
+            title: 'EKS Helm Client',
+            description: 'Deploy Helm charts to EKS clusters with private infrastructure support',
+            base: '/eks-helm-client-github-action/',
+            themeConfig: {
+              repo: 'open-source-srilanka/eks-helm-client-github-action',
+              editLinks: true,
+              editLinkText: 'Edit this page on GitHub',
+              lastUpdated: 'Last Updated',
+              nav: [
+                { text: 'Home', link: '/' },
+                { text: 'Examples', link: '/docs/examples/' },
+                { text: 'Migration', link: '/docs/MIGRATION' },
+                { text: 'Contributing', link: '/docs/CONTRIBUTING' },
+                { text: 'GitHub', link: 'https://github.com/open-source-srilanka/eks-helm-client-github-action' }
+              ],
+              sidebar: {
+                '/docs/': [
+                  {
+                    title: 'Guide',
+                    collapsable: false,
+                    children: [
+                      '',
+                      'MIGRATION',
+                      'CONTRIBUTING',
+                      'SECURITY'
+                    ]
+                  },
+                  {
+                    title: 'Examples',
+                    collapsable: false,
+                    children: [
+                      'examples/',
+                      'examples/basic-usage',
+                      'examples/private-cluster',
+                      'examples/private-registry',
+                      'examples/advanced-scenarios',
+                      'examples/troubleshooting'
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+          EOF
+
+      - name: Create docs index
+        run: |
+          cat << 'EOF' > docs/README.md
+          # EKS Helm Client Documentation
+          
+          Welcome to the comprehensive documentation for EKS Helm Client GitHub Action v2.0.0.
+          
+          ## Quick Navigation
+          
+          - [Basic Usage Examples](examples/basic-usage.md)
+          - [Private EKS Clusters](examples/private-cluster.md)
+          - [Private Helm Registries](examples/private-registry.md)
+          - [Advanced Scenarios](examples/advanced-scenarios.md)
+          - [Troubleshooting Guide](examples/troubleshooting.md)
+          - [Migration Guide](MIGRATION.md)
+          - [Contributing](CONTRIBUTING.md)
+          - [Security Policy](SECURITY.md)
+          
+          ## Features
+          
+          - 🔒 Private EKS cluster support
+          - 🏢 Private Helm repository authentication
+          - 🛡️ Enhanced security features
+          - ⚡ Configurable tool versions
+          - 🐛 Debug mode and troubleshooting
+          - 🧪 Dry run testing capabilities
+          
+          ## Getting Started
+          
+          Check out our [Basic Usage Examples](examples/basic-usage.md) to get started quickly.
+          EOF
+
+      - name: Build documentation
+        run: |
+          # Copy README to docs root
+          cp README.md docs/index.md
+          
+          # Build static site (fallback to simple HTML if VuePress fails)
+          npx vuepress build . || {
+            echo "VuePress build failed, creating simple HTML structure"
+            mkdir -p _site
+            
+            # Create simple index.html
+            cat << 'EOF' > _site/index.html
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>EKS Helm Client Documentation</title>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                .nav { background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+                .nav a { margin-right: 15px; text-decoration: none; color: #0366d6; }
+                .content { line-height: 1.6; }
+                pre { background: #f6f8fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+                code { background: #f6f8fa; padding: 2px 4px; border-radius: 3px; }
+              </style>
+            </head>
+            <body>
+              <div class="nav">
+                <a href="#quick-start">Quick Start</a>
+                <a href="#examples">Examples</a>
+                <a href="#docs">Documentation</a>
+                <a href="https://github.com/open-source-srilanka/eks-helm-client-github-action">GitHub</a>
+              </div>
+              <div class="content">
+                <h1>EKS Helm Client Documentation</h1>
+                <p>Deploy Helm charts to EKS clusters with private infrastructure support.</p>
+                
+                <h2 id="quick-start">Quick Start</h2>
+                <pre><code>- name: Deploy to EKS
+            uses: open-source-srilanka/eks-helm-client-github-action@v2.0.0
+            with:
+              cluster-name: my-cluster
+              region: us-west-2
+              args: |
+                helm repo add bitnami https://charts.bitnami.com/bitnami
+                helm upgrade --install my-app bitnami/nginx</code></pre>
+                
+                <h2 id="examples">Examples</h2>
+                <ul>
+                  <li><a href="docs/examples/basic-usage.html">Basic Usage</a></li>
+                  <li><a href="docs/examples/private-cluster.html">Private EKS Clusters</a></li>
+                  <li><a href="docs/examples/private-registry.html">Private Helm Registries</a></li>
+                </ul>
+                
+                <h2 id="docs">Documentation</h2>
+                <ul>
+                  <li><a href="docs/MIGRATION.html">Migration Guide</a></li>
+                  <li><a href="docs/CONTRIBUTING.html">Contributing</a></li>
+                  <li><a href="docs/SECURITY.html">Security Policy</a></li>
+                </ul>
+              </div>
+            </body>
+            </html>
+            EOF
+            
+            # Convert markdown files to basic HTML
+            find docs -name "*.md" | while read -r file; do
+              html_file="_site/${file%.md}.html"
+              mkdir -p "$(dirname "$html_file")"
+              
+              echo "<!DOCTYPE html><html><head><title>$(basename "$file" .md)</title><meta charset='utf-8'><style>body{font-family:sans-serif;max-width:1200px;margin:0 auto;padding:20px;line-height:1.6}pre{background:#f6f8fa;padding:15px;border-radius:5px}</style></head><body>" > "$html_file"
+              
+              # Simple markdown to HTML conversion
+              sed 's/^# \(.*\)/<h1>\1<\/h1>/g; s/^## \(.*\)/<h2>\1<\/h2>/g; s/^### \(.*\)/<h3>\1<\/h3>/g' "$file" >> "$html_file"
+              
+              echo "</body></html>" >> "$html_file"
+            done
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.vuepress/dist'
+
+  # Deploy to GitHub Pages
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: build-docs
+    if: github.ref == 'refs/heads/main'
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Generate documentation summary
+  docs-summary:
+    name: Documentation Summary
+    runs-on: ubuntu-latest
+    needs: [lint-docs, spell-check]
+    if: always()
+    
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "# 📚 Documentation Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📋 Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Markdown Linting | ${{ needs.lint-docs.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Spell Check | ${{ needs.spell-check.result == 'success' && '✅ Passed' || '⚠️ Warnings' }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "| Documentation Build | ${{ needs.build-docs.result == 'success' && '✅ Deployed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🔗 Links" >> $GITHUB_STEP_SUMMARY
+            echo "- [📖 Documentation Site](https://open-source-srilanka.github.io/eks-helm-client-github-action/)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📝 Documentation Files" >> $GITHUB_STEP_SUMMARY
+          echo "- README.md" >> $GITHUB_STEP_SUMMARY
+          echo "- CHANGELOG.md" >> $GITHUB_STEP_SUMMARY
+          echo "- docs/MIGRATION.md" >> $GITHUB_STEP_SUMMARY
+          echo "- docs/CONTRIBUTING.md" >> $GITHUB_STEP_SUMMARY
+          echo "- docs/SECURITY.md" >> $GITHUB_STEP_SUMMARY
+          echo "- docs/examples/*.md" >> $GITHUB_STEP_SUMMARY

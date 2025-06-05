@@ -1,0 +1,69 @@
+eks-helm-client-github-action/
+├── 📄 action.yml                           ✅ CREATED
+├── 📄 Dockerfile                           ✅ CREATED  
+├── 📄 README.md                            ✅ CREATED
+├── 📄 LICENSE.md                           ❌ TODO (existing from v1)
+├── 📄 CODE_OF_CONDUCT.md                   ❌ TODO (existing from v1)
+├── 📄 CHANGELOG.md                         ✅ CREATED
+├── 📄 .gitignore                           ✅ CREATED
+├── 📄 .dockerignore                        ✅ CREATED
+├── 📄 .hadolint.yml                        ✅ CREATED
+│
+├── 📁 .github/
+│   ├── 📄 FUNDING.yml                      ❌ TODO (existing from v1)
+│   ├── 📄 PULL_REQUEST_TEMPLATE.md         ✅ CREATED
+│   ├── 📁 ISSUE_TEMPLATE/
+│   │   ├── 📄 bug_report.md                ✅ CREATED
+│   │   ├── 📄 feature_request.md           ✅ CREATED
+│   │   └── 📄 question.md                  ✅ CREATED
+│   └── 📁 workflows/
+│       ├── 📄 test.yml                     ✅ CREATED (main test workflow)
+│       ├── 📄 release.yml                  ✅ CREATED
+│       ├── 📄 security.yml                 ✅ CREATED
+│       └── 📄 docs.yml                     ❌ TODO
+│
+├── 📁 scripts/
+│   ├── 📄 entrypoint.sh                    ✅ CREATED (enhanced v2.0.0)
+│   ├── 📄 health-check.sh                  ✅ CREATED
+│   ├── 📄 setup-tools.sh                   ✅ CREATED
+│   └── 📄 cleanup.sh                       ✅ CREATED
+│
+├── 📁 templates/
+│   ├── 📄 config.template                  ✅ CREATED (updated)
+│   ├── 📄 private-config.template          ✅ CREATED
+│   └── 📄 helm-values.template             ✅ CREATED
+│
+├── 📁 docs/
+│   ├── 📄 MIGRATION.md                     ✅ CREATED (v1 to v2 migration)
+│   ├── 📄 SECURITY.md                      ✅ CREATED
+│   ├── 📄 CONTRIBUTING.md                  ✅ CREATED
+│   ├── 📁 examples/
+│   │   ├── 📄 basic-usage.md               ✅ CREATED
+│   │   ├── 📄 private-cluster.md           ✅ CREATED
+│   │   ├── 📄 private-registry.md          ✅ CREATED
+│   │   ├── 📄 advanced-scenarios.md        ❌ TODO
+│   │   └── 📄 troubleshooting.md           ❌ TODO
+│   └── 📁 assets/
+│       ├── 📄 architecture.png             ❌ TODO (diagrams)
+│       └── 📄 workflow-diagram.png         ❌ TODO (diagrams)
+│
+├── 📁 tests/
+│   ├── 📁 unit/
+│   │   ├── 📄 test-entrypoint.sh           ❌ TODO
+│   │   ├── 📄 test-health-check.sh         ❌ TODO
+│   │   └── 📄 test-templates.sh            ❌ TODO
+│   ├── 📁 integration/
+│   │   ├── 📄 test-public-cluster.sh       ❌ TODO
+│   │   ├── 📄 test-private-cluster.sh      ❌ TODO
+│   │   └── 📄 test-private-registry.sh     ❌ TODO
+│   └── 📁 fixtures/
+│       ├── 📁 sample-chart/                ❌ TODO
+│       │   ├── 📄 Chart.yaml
+│       │   ├── 📄 values.yaml
+│       │   └── 📁 templates/
+│       │       └── 📄 deployment.yaml
+│       └── 📁 test-configs/                ❌ TODO
+│           ├── 📄 cluster-config.yaml
+│           └── 📄 registry-config.yaml
+└── 📁 .vscode/                             ❌ TODO (optional IDE config)
+    └── 📄 settings.json
