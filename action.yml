@@ -15,12 +15,12 @@ inputs:
     required: true
   
   cluster-name:
-    description: 'EKS cluster name'
-    required: false
+    description: 'EKS cluster name (falls back to CLUSTER_NAME env var if not provided)'
+    required: true
   
   region:
-    description: 'AWS region where the EKS cluster is located'
-    required: false
+    description: 'AWS region where the EKS cluster is located (falls back to REGION_CODE env var if not provided)'
+    required: true
   
   private-cluster:
     description: 'Set to true if EKS cluster is private (default: false)'
