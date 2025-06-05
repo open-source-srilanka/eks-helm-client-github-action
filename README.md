@@ -319,9 +319,46 @@ helm upgrade --install my-app chart --wait --timeout 15m
 5. ✅ kubectl can connect to cluster
 6. ✅ Helm can list repositories and charts
 
+## 📚 Migration from v1.0.0
+
+### Backward Compatibility
+
+Your existing v1.0.0 workflows will continue to work unchanged:
+
+```yaml
+# v1.0.0 style - still works in v2.0.0
+env:
+  CLUSTER_NAME: my-cluster
+  REGION_CODE: us-west-2
+with:
+  args: "helm install my-app bitnami/nginx"
+```
+
+### New v2.0.0 Style
+
+Take advantage of new features with input parameters:
+
+```yaml
+# v2.0.0 style - recommended for new workflows
+with:
+  cluster-name: my-cluster
+  region: us-west-2
+  private-cluster: true
+  helm-registry-url: https://harbor.company.com
+  args: "helm install my-app private-registry/my-app"
+```
+
+See the complete [Migration Guide](docs/MIGRATION.md) for detailed upgrade instructions.
+
 ## 📚 Examples Repository
 
-Find comprehensive examples and use cases in our [examples repository](https://github.com/open-source-srilanka/examples/tree/master/eks-helm-client-github-action).
+Find comprehensive examples and use cases in our documentation:
+
+- [Basic Usage Examples](docs/examples/basic-usage.md)
+- [Private Cluster Examples](docs/examples/private-cluster.md)
+- [Private Registry Examples](docs/examples/private-registry.md)
+- [Advanced Scenarios](docs/examples/advanced-scenarios.md)
+- [Troubleshooting Guide](docs/examples/troubleshooting.md)
 
 ## 🤝 Contributing
 
@@ -361,10 +398,7 @@ For questions, issues, or feature requests:
 - 🐛 Issues: [GitHub Issues](https://github.com/open-source-srilanka/eks-helm-client-github-action/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/open-source-srilanka/eks-helm-client-github-action/discussions)
 
-
 ## 📤 Author
 
-<p align="center">
-    Made with ❤️ & ☕ by <a href="https://dinushchathurya.me/"><u style="color:#0193f0;">Dinush Chathurya</u></a> as a part of <a href="https://github.com/open-source-srilanka"><u style="color:#0193f0;">ProjectOSS</u></a>
-</p>  
+**Made with ❤️ & ☕ by <a href="https://dinushchathurya.me/"><u style="color:#0193f0;">Dinush Chathurya</u></a> as a part of <a href="https://github.com/open-source-srilanka"><u style="color:#0193f0;">ProjectOSS</u></a>** 
 
