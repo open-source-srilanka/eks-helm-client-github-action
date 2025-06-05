@@ -2,7 +2,7 @@ FROM alpine:3.18
 
 # Metadata
 LABEL maintainer="dinushchathurya21@gmail.com"
-LABEL version="2.0.0-rc.1"
+LABEL version="2.0.0"
 LABEL description="EKS Helm Client with private infrastructure support"
 LABEL org.opencontainers.image.source="https://github.com/open-source-srilanka/eks-helm-client-github-action"
 LABEL org.opencontainers.image.description="Deploy Helm charts to EKS clusters with support for private clusters and registries"
