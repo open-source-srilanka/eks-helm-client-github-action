@@ -2,49 +2,172 @@ apiVersion: v1
 kind: Config
 preferences: {}
 
+# Cluster configuration for EKS
 clusters:
 - cluster:
-    server: ${CLUSTER_ENDPOINT}
-    certificate-authority-data: ${CLUSTER_CA}
-    # Enhanced security settings
+    # EKS API server endpoint
+    server: ${ENDPOINT_URL}
+    
+    # Certificate authority data from EKS cluster
+    certificate-authority-data: ${CA_CERT}
+    
+    # Security settings - always verify certificates
     insecure-skip-tls-verify: false
-    # Support for private clusters with custom CA
-    ${CUSTOM_CA_CONFIG}
+    
+    # Additional TLS configuration for private clusters
+    tls-server-name: ${TLS_SERVER_NAME:-}
+    
+    # Custom certificate authority file (if needed for private clusters)
+    ${CUSTOM_CA_FILE}
+    
+    # Proxy configuration for private clusters (if needed)
+    ${PROXY_URL}
+    
   name: ${CLUSTER_NAME}
 
+# Context configuration
 contexts:
 - context:
     cluster: ${CLUSTER_NAME}
-    user: aws-user
-    namespace: ${NAMESPACE}
-  name: aws-context
+    user: ${USER_NAME:-aws-user}
+    
+    # Default namespace (can be overridden)
+    namespace: ${DEFAULT_NAMESPACE:-default}
+    
+    # Additional context extensions
+    extensions:
+    - name: region
+      extension:
+        region: ${REGION_CODE}
+    - name: cluster-arn
+      extension:
+        cluster-arn: arn:aws:eks:${REGION_CODE}:${AWS_ACCOUNT_ID:-}:cluster/${CLUSTER_NAME}
+        
+  name: ${CONTEXT_NAME:-aws-context}
 
-current-context: aws-context
+# Set the current context
+current-context: ${CONTEXT_NAME:-aws-context}
 
+# User authentication configuration
 users:
-- name: aws-user
+- name: ${USER_NAME:-aws-user}
   user:
     exec:
+      # AWS IAM Authenticator configuration
       apiVersion: client.authentication.k8s.io/v1beta1
       command: aws
+      
+      # Environment variables for AWS authentication
       env:
+      # Primary AWS region
       - name: AWS_REGION
         value: ${REGION_CODE}
-      # Support for STS regional endpoints
+      
+      # Default region (fallback)
+      - name: AWS_DEFAULT_REGION
+        value: ${REGION_CODE}
+      
+      # Use regional STS endpoints for better reliability and performance
       - name: AWS_STS_REGIONAL_ENDPOINTS
         value: regional
-      # Additional environment variables for private cluster access
+      
+      # Enable SDK retries for network issues
+      - name: AWS_MAX_ATTEMPTS
+        value: "${AWS_MAX_ATTEMPTS:-3}"
+      
+      # SDK retry mode (adaptive is recommended for EKS)
+      - name: AWS_RETRY_MODE
+        value: "${AWS_RETRY_MODE:-adaptive}"
+      
+      # Custom CA bundle path (for private clusters with custom CAs)
+      ${CA_BUNDLE_ENV}
+      
+      # HTTP proxy settings (for private clusters)
+      ${HTTP_PROXY_ENV}
+      ${HTTPS_PROXY_ENV}
+      ${NO_PROXY_ENV}
+      
+      # Profile-specific configuration
+      ${AWS_PROFILE_ENV}
+      
+      # Web identity token file (for IRSA/service account authentication)
+      ${AWS_WEB_IDENTITY_TOKEN_FILE_ENV}
+      
+      # Role session name for auditing
+      ${AWS_ROLE_SESSION_NAME_ENV}
+      
+      # Additional custom environment variables
       ${ADDITIONAL_ENV_VARS}
+      
+      # AWS CLI command arguments
       args:
+      # Specify region explicitly
       - --region
       - ${REGION_CODE}
+      
+      # EKS get-token command
       - eks
       - get-token
+      
+      # Target cluster name
       - --cluster-name
       - ${CLUSTER_NAME}
-      # Optional: specify output format for better error handling
+      
+      # Output format (json provides better error information)
       - --output
       - json
-      # Support for role assumption in the token command
+      
+      # Role ARN for cross-account or specific role access
       ${ROLE_ARN_ARGS}
+      
+      # Custom STS endpoint (for private clusters with VPC endpoints)
+      ${STS_ENDPOINT_ARGS}
+      
+      # Duration seconds for token validity (max 3600 for EKS)
+      ${DURATION_SECONDS_ARGS}
+      
+      # Additional custom arguments
+      ${ADDITIONAL_ARGS}
+      
+      # Provide cluster info to the authenticator
       provideClusterInfo: true
+      
+      # Interactive mode settings
+      interactiveMode: Never
+      
+      # Installation hint for better error messages
+      installHint: |
+        The AWS CLI is required for EKS authentication.
+        Please ensure 'aws' command is available in PATH and configured with appropriate credentials.
+        
+        For GitHub Actions, use:
+        - aws-actions/configure-aws-credentials action, or  
+        - IAM Roles for Service Accounts (IRSA), or
+        - Instance profiles (for self-hosted runners)
+
+# Additional configuration for specific scenarios
+${ADDITIONAL_CONFIG}
+
+# Extensions for advanced features
+extensions:
+- name: eks-cluster-info
+  extension:
+    cluster-name: ${CLUSTER_NAME}
+    region: ${REGION_CODE}
+    endpoint: ${ENDPOINT_URL}
+    platform-version: ${PLATFORM_VERSION:-}
+    kubernetes-version: ${KUBERNETES_VERSION:-}
+    
+- name: authentication-info
+  extension:
+    auth-method: ${AUTH_METHOD:-aws-iam}
+    role-arn: ${ROLE_ARN:-}
+    session-name: ${AWS_ROLE_SESSION_NAME:-github-actions-eks-deploy}
+    
+- name: network-info
+  extension:
+    vpc-id: ${VPC_ID:-}
+    private-cluster: ${PRIVATE_CLUSTER:-false}
+    endpoint-access: ${ENDPOINT_ACCESS:-public}
+    
+${ADDITIONAL_EXTENSIONS}

@@ -1,0 +1,612 @@
+# Helm Values Template for EKS Deployments
+# Supports public/private registries, private EKS clusters, and enterprise configurations
+# Use with envsubst to generate actual values.yaml files
+
+# Global configuration
+global:
+  # Environment configuration
+  environment: ${ENVIRONMENT:-development}
+  region: ${AWS_REGION:-us-west-2}
+  cluster: ${CLUSTER_NAME:-default}
+  
+  # Private cluster specific settings
+  privateCluster: ${PRIVATE_CLUSTER:-false}
+  
+  # Registry configuration
+  imageRegistry: ${IMAGE_REGISTRY:-}
+  imageRegistryCredentials:
+    enabled: ${REGISTRY_CREDENTIALS_ENABLED:-false}
+    secretName: ${REGISTRY_SECRET_NAME:-registry-credentials}
+  
+  # Network configuration for private clusters
+  networkConfig:
+    vpcId: ${VPC_ID:-}
+    vpcCidr: ${VPC_CIDR:-}
+    privateSubnets: ${PRIVATE_SUBNETS:-}
+    
+  # Security configuration
+  securityConfig:
+    podSecurityStandards: ${POD_SECURITY_STANDARDS:-restricted}
+    networkPolicies: ${NETWORK_POLICIES_ENABLED:-true}
+    serviceAccountAnnotations:
+      eks.amazonaws.com/role-arn: ${SERVICE_ACCOUNT_ROLE_ARN:-}
+
+# Application configuration
+app:
+  # Basic application settings
+  name: ${APP_NAME:-my-app}
+  version: ${APP_VERSION:-latest}
+  
+  # Image configuration with private registry support
+  image:
+    repository: ${IMAGE_REPOSITORY:-nginx}
+    tag: ${IMAGE_TAG:-latest}
+    pullPolicy: ${IMAGE_PULL_POLICY:-IfNotPresent}
+    
+    # Private registry configuration
+    registry: ${IMAGE_REGISTRY:-}
+    registryCredentials:
+      enabled: ${PRIVATE_REGISTRY_ENABLED:-false}
+      secretName: ${IMAGE_PULL_SECRET_NAME:-regcred}
+      
+    # ECR specific configuration
+    ecr:
+      enabled: ${ECR_ENABLED:-false}
+      region: ${ECR_REGION:-${AWS_REGION}}
+      accountId: ${ECR_ACCOUNT_ID:-}
+      repositoryUri: ${ECR_REPOSITORY_URI:-}
+      
+    # Multi-architecture support
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    
+  # Application labels and annotations
+  labels:
+    app.kubernetes.io/name: ${APP_NAME:-my-app}
+    app.kubernetes.io/instance: ${RELEASE_NAME:-my-app}
+    app.kubernetes.io/version: ${APP_VERSION:-latest}
+    app.kubernetes.io/component: ${COMPONENT:-web}
+    app.kubernetes.io/part-of: ${PROJECT_NAME:-default}
+    app.kubernetes.io/managed-by: Helm
+    # Custom labels
+    ${CUSTOM_LABELS:-}
+    
+  annotations:
+    deployment.kubernetes.io/revision: "${DEPLOYMENT_REVISION:-1}"
+    # Private cluster annotations
+    ${PRIVATE_CLUSTER_ANNOTATIONS:-}
+    # Custom annotations
+    ${CUSTOM_ANNOTATIONS:-}
+
+# Deployment configuration
+deployment:
+  # Replica configuration
+  replicaCount: ${REPLICA_COUNT:-1}
+  
+  # Rolling update strategy
+  strategy:
+    type: ${DEPLOYMENT_STRATEGY:-RollingUpdate}
+    rollingUpdate:
+      maxUnavailable: ${MAX_UNAVAILABLE:-25%}
+      maxSurge: ${MAX_SURGE:-25%}
+      
+  # Revision history
+  revisionHistoryLimit: ${REVISION_HISTORY_LIMIT:-3}
+  
+  # Pod configuration
+  podLabels:
+    ${POD_LABELS:-}
+    
+  podAnnotations:
+    # Prometheus monitoring
+    prometheus.io/scrape: "${PROMETHEUS_SCRAPE:-true}"
+    prometheus.io/port: "${PROMETHEUS_PORT:-8080}"
+    prometheus.io/path: "${PROMETHEUS_PATH:-/metrics}"
+    # Custom pod annotations
+    ${POD_ANNOTATIONS:-}
+    
+  # Security context
+  securityContext:
+    runAsNonRoot: ${RUN_AS_NON_ROOT:-true}
+    runAsUser: ${RUN_AS_USER:-1000}
+    runAsGroup: ${RUN_AS_GROUP:-1000}
+    fsGroup: ${FS_GROUP:-1000}
+    seccompProfile:
+      type: ${SECCOMP_PROFILE:-RuntimeDefault}
+      
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: ${ALLOW_PRIVILEGE_ESCALATION:-false}
+    readOnlyRootFilesystem: ${READ_ONLY_ROOT_FILESYSTEM:-true}
+    capabilities:
+      drop:
+        - ALL
+      add: ${CAPABILITIES_ADD:-[]}
+        
+  # Resource configuration
+  resources:
+    requests:
+      cpu: ${CPU_REQUESTS:-100m}
+      memory: ${MEMORY_REQUESTS:-128Mi}
+      ephemeral-storage: ${EPHEMERAL_STORAGE_REQUESTS:-1Gi}
+    limits:
+      cpu: ${CPU_LIMITS:-500m}
+      memory: ${MEMORY_LIMITS:-512Mi}
+      ephemeral-storage: ${EPHEMERAL_STORAGE_LIMITS:-2Gi}
+      
+  # Liveness and readiness probes
+  livenessProbe:
+    enabled: ${LIVENESS_PROBE_ENABLED:-true}
+    httpGet:
+      path: ${LIVENESS_PROBE_PATH:-/health}
+      port: ${LIVENESS_PROBE_PORT:-8080}
+      scheme: ${LIVENESS_PROBE_SCHEME:-HTTP}
+    initialDelaySeconds: ${LIVENESS_INITIAL_DELAY:-30}
+    periodSeconds: ${LIVENESS_PERIOD:-10}
+    timeoutSeconds: ${LIVENESS_TIMEOUT:-5}
+    failureThreshold: ${LIVENESS_FAILURE_THRESHOLD:-3}
+    
+  readinessProbe:
+    enabled: ${READINESS_PROBE_ENABLED:-true}
+    httpGet:
+      path: ${READINESS_PROBE_PATH:-/ready}
+      port: ${READINESS_PROBE_PORT:-8080}
+      scheme: ${READINESS_PROBE_SCHEME:-HTTP}
+    initialDelaySeconds: ${READINESS_INITIAL_DELAY:-5}
+    periodSeconds: ${READINESS_PERIOD:-5}
+    timeoutSeconds: ${READINESS_TIMEOUT:-3}
+    failureThreshold: ${READINESS_FAILURE_THRESHOLD:-3}
+    
+  # Startup probe for slow-starting containers
+  startupProbe:
+    enabled: ${STARTUP_PROBE_ENABLED:-false}
+    httpGet:
+      path: ${STARTUP_PROBE_PATH:-/startup}
+      port: ${STARTUP_PROBE_PORT:-8080}
+      scheme: ${STARTUP_PROBE_SCHEME:-HTTP}
+    initialDelaySeconds: ${STARTUP_INITIAL_DELAY:-10}
+    periodSeconds: ${STARTUP_PERIOD:-5}
+    timeoutSeconds: ${STARTUP_TIMEOUT:-3}
+    failureThreshold: ${STARTUP_FAILURE_THRESHOLD:-10}
+
+# Service configuration
+service:
+  enabled: ${SERVICE_ENABLED:-true}
+  type: ${SERVICE_TYPE:-ClusterIP}
+  
+  # Port configuration
+  ports:
+    - name: http
+      port: ${SERVICE_PORT:-80}
+      targetPort: ${TARGET_PORT:-8080}
+      protocol: TCP
+    ${ADDITIONAL_SERVICE_PORTS:-}
+    
+  # Load balancer configuration (for LoadBalancer type)
+  loadBalancerSourceRanges: ${LOAD_BALANCER_SOURCE_RANGES:-[]}
+  loadBalancerClass: ${LOAD_BALANCER_CLASS:-}
+  
+  # Private cluster service annotations
+  annotations:
+    # AWS Load Balancer Controller annotations
+    service.beta.kubernetes.io/aws-load-balancer-type: ${AWS_LB_TYPE:-}
+    service.beta.kubernetes.io/aws-load-balancer-scheme: ${AWS_LB_SCHEME:-internal}
+    service.beta.kubernetes.io/aws-load-balancer-subnets: ${AWS_LB_SUBNETS:-${PRIVATE_SUBNETS}}
+    service.beta.kubernetes.io/aws-load-balancer-security-groups: ${AWS_LB_SECURITY_GROUPS:-}
+    ${SERVICE_ANNOTATIONS:-}
+
+# Ingress configuration
+ingress:
+  enabled: ${INGRESS_ENABLED:-false}
+  className: ${INGRESS_CLASS_NAME:-aws-load-balancer}
+  
+  annotations:
+    # AWS Load Balancer Controller annotations
+    alb.ingress.kubernetes.io/scheme: ${ALB_SCHEME:-internal}
+    alb.ingress.kubernetes.io/target-type: ${ALB_TARGET_TYPE:-ip}
+    alb.ingress.kubernetes.io/subnets: ${ALB_SUBNETS:-${PRIVATE_SUBNETS}}
+    alb.ingress.kubernetes.io/security-groups: ${ALB_SECURITY_GROUPS:-}
+    alb.ingress.kubernetes.io/certificate-arn: ${ALB_CERTIFICATE_ARN:-}
+    alb.ingress.kubernetes.io/ssl-redirect: "${ALB_SSL_REDIRECT:-443}"
+    alb.ingress.kubernetes.io/listen-ports: ${ALB_LISTEN_PORTS:-'[{"HTTP": 80}, {"HTTPS": 443}]'}
+    # Custom ingress annotations
+    ${INGRESS_ANNOTATIONS:-}
+    
+  hosts:
+    - host: ${INGRESS_HOST:-app.example.com}
+      paths:
+        - path: ${INGRESS_PATH:-/}
+          pathType: ${INGRESS_PATH_TYPE:-Prefix}
+          
+  tls:
+    - secretName: ${TLS_SECRET_NAME:-}
+      hosts:
+        - ${INGRESS_HOST:-app.example.com}
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: ${HPA_ENABLED:-false}
+  minReplicas: ${HPA_MIN_REPLICAS:-1}
+  maxReplicas: ${HPA_MAX_REPLICAS:-10}
+  
+  # Metrics configuration
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: ${HPA_CPU_TARGET:-80}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: ${HPA_MEMORY_TARGET:-80}
+          
+  # Behavior configuration
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: ${HPA_SCALE_DOWN_STABILIZATION:-300}
+      policies:
+      - type: Percent
+        value: ${HPA_SCALE_DOWN_PERCENT:-50}
+        periodSeconds: ${HPA_SCALE_DOWN_PERIOD:-60}
+    scaleUp:
+      stabilizationWindowSeconds: ${HPA_SCALE_UP_STABILIZATION:-0}
+      policies:
+      - type: Percent
+        value: ${HPA_SCALE_UP_PERCENT:-100}
+        periodSeconds: ${HPA_SCALE_UP_PERIOD:-15}
+
+# Vertical Pod Autoscaler (if using VPA)
+verticalPodAutoscaler:
+  enabled: ${VPA_ENABLED:-false}
+  updateMode: ${VPA_UPDATE_MODE:-Off}
+  
+# Environment variables
+environment:
+  # Environment variables from values
+  variables:
+    APP_ENV: ${APP_ENV:-production}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    REGION: ${AWS_REGION:-us-west-2}
+    CLUSTER_NAME: ${CLUSTER_NAME:-}
+    ${CUSTOM_ENV_VARS:-}
+    
+  # Environment variables from secrets
+  secrets:
+    enabled: ${ENV_SECRETS_ENABLED:-false}
+    secretName: ${ENV_SECRET_NAME:-app-secrets}
+    
+  # Environment variables from config maps
+  configMaps:
+    enabled: ${ENV_CONFIG_MAPS_ENABLED:-false}
+    configMapName: ${ENV_CONFIG_MAP_NAME:-app-config}
+
+# Configuration management
+configMap:
+  enabled: ${CONFIG_MAP_ENABLED:-false}
+  name: ${CONFIG_MAP_NAME:-app-config}
+  data:
+    ${CONFIG_MAP_DATA:-}
+
+# Secrets management
+secrets:
+  enabled: ${SECRETS_ENABLED:-false}
+  name: ${SECRET_NAME:-app-secrets}
+  type: ${SECRET_TYPE:-Opaque}
+  
+  # External secrets operator support
+  externalSecrets:
+    enabled: ${EXTERNAL_SECRETS_ENABLED:-false}
+    secretStore: ${EXTERNAL_SECRET_STORE:-aws-secrets-manager}
+    
+# Persistent storage
+persistence:
+  enabled: ${PERSISTENCE_ENABLED:-false}
+  
+  # Storage configuration
+  storageClass: ${STORAGE_CLASS:-gp3}
+  accessMode: ${ACCESS_MODE:-ReadWriteOnce}
+  size: ${STORAGE_SIZE:-10Gi}
+  
+  # EBS CSI driver configuration
+  ebs:
+    enabled: ${EBS_ENABLED:-false}
+    volumeType: ${EBS_VOLUME_TYPE:-gp3}
+    iops: ${EBS_IOPS:-3000}
+    throughput: ${EBS_THROUGHPUT:-125}
+    encrypted: ${EBS_ENCRYPTED:-true}
+    kmsKeyId: ${EBS_KMS_KEY_ID:-}
+    
+  # EFS CSI driver configuration
+  efs:
+    enabled: ${EFS_ENABLED:-false}
+    fileSystemId: ${EFS_FILE_SYSTEM_ID:-}
+    accessPoint: ${EFS_ACCESS_POINT:-}
+
+# Service Account configuration
+serviceAccount:
+  create: ${SERVICE_ACCOUNT_CREATE:-true}
+  name: ${SERVICE_ACCOUNT_NAME:-}
+  
+  # IRSA (IAM Roles for Service Accounts) configuration
+  annotations:
+    eks.amazonaws.com/role-arn: ${SERVICE_ACCOUNT_ROLE_ARN:-}
+    ${SERVICE_ACCOUNT_ANNOTATIONS:-}
+    
+  # Pod Identity configuration (newer alternative to IRSA)
+  podIdentity:
+    enabled: ${POD_IDENTITY_ENABLED:-false}
+    roleArn: ${POD_IDENTITY_ROLE_ARN:-}
+
+# Network Policies
+networkPolicy:
+  enabled: ${NETWORK_POLICY_ENABLED:-false}
+  
+  # Ingress rules
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ${ALLOWED_NAMESPACE:-kube-system}
+      ports:
+        - protocol: TCP
+          port: ${NETWORK_POLICY_PORT:-8080}
+          
+  # Egress rules for private clusters
+  egress:
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS to AWS services
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    ${ADDITIONAL_EGRESS_RULES:-}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: ${PDB_ENABLED:-false}
+  minAvailable: ${PDB_MIN_AVAILABLE:-1}
+  maxUnavailable: ${PDB_MAX_UNAVAILABLE:-}
+
+# Monitoring and Observability
+monitoring:
+  # Prometheus configuration
+  prometheus:
+    enabled: ${PROMETHEUS_ENABLED:-true}
+    port: ${PROMETHEUS_PORT:-8080}
+    path: ${PROMETHEUS_PATH:-/metrics}
+    
+  # ServiceMonitor for Prometheus Operator
+  serviceMonitor:
+    enabled: ${SERVICE_MONITOR_ENABLED:-false}
+    namespace: ${SERVICE_MONITOR_NAMESPACE:-monitoring}
+    interval: ${SERVICE_MONITOR_INTERVAL:-30s}
+    scrapeTimeout: ${SERVICE_MONITOR_TIMEOUT:-10s}
+    
+  # Grafana dashboard
+  grafanaDashboard:
+    enabled: ${GRAFANA_DASHBOARD_ENABLED:-false}
+    namespace: ${GRAFANA_DASHBOARD_NAMESPACE:-monitoring}
+
+# Logging
+logging:
+  # Fluent Bit configuration
+  fluentBit:
+    enabled: ${FLUENT_BIT_ENABLED:-false}
+    outputConfig: ${FLUENT_BIT_OUTPUT:-cloudwatch}
+    
+  # AWS CloudWatch configuration
+  cloudWatch:
+    enabled: ${CLOUDWATCH_ENABLED:-false}
+    logGroup: ${CLOUDWATCH_LOG_GROUP:-/aws/eks/${CLUSTER_NAME}/application}
+    logStream: ${CLOUDWATCH_LOG_STREAM:-${APP_NAME}}
+    region: ${CLOUDWATCH_REGION:-${AWS_REGION}}
+
+# Service Mesh (Istio/App Mesh)
+serviceMesh:
+  # Istio configuration
+  istio:
+    enabled: ${ISTIO_ENABLED:-false}
+    injection: ${ISTIO_INJECTION:-enabled}
+    
+  # AWS App Mesh configuration
+  appMesh:
+    enabled: ${APP_MESH_ENABLED:-false}
+    meshName: ${APP_MESH_NAME:-}
+    virtualNode: ${APP_MESH_VIRTUAL_NODE:-}
+
+# Security scanning
+security:
+  # Pod Security Standards
+  podSecurity:
+    enforce: ${POD_SECURITY_ENFORCE:-restricted}
+    audit: ${POD_SECURITY_AUDIT:-restricted}
+    warn: ${POD_SECURITY_WARN:-restricted}
+    
+  # Network policies
+  networkPolicies:
+    enabled: ${SECURITY_NETWORK_POLICIES:-true}
+    defaultDeny: ${SECURITY_DEFAULT_DENY:-true}
+    
+  # Image scanning
+  imageScanning:
+    enabled: ${IMAGE_SCANNING_ENABLED:-false}
+    scanner: ${IMAGE_SCANNER:-trivy}
+
+# Backup and Recovery
+backup:
+  # Velero backup configuration
+  velero:
+    enabled: ${VELERO_ENABLED:-false}
+    schedule: ${VELERO_SCHEDULE:-0 2 * * *}
+    ttl: ${VELERO_TTL:-720h}
+    
+# Chaos Engineering
+chaosEngineering:
+  # Chaos Mesh configuration
+  chaosMesh:
+    enabled: ${CHAOS_MESH_ENABLED:-false}
+    experiments: ${CHAOS_EXPERIMENTS:-[]}
+
+# Custom resources and configurations
+custom:
+  # Additional Kubernetes resources
+  resources: ${CUSTOM_RESOURCES:-[]}
+  
+  # Custom Helm hooks
+  hooks:
+    preInstall: ${PRE_INSTALL_HOOKS:-[]}
+    postInstall: ${POST_INSTALL_HOOKS:-[]}
+    preUpgrade: ${PRE_UPGRADE_HOOKS:-[]}
+    postUpgrade: ${POST_UPGRADE_HOOKS:-[]}
+    preDelete: ${PRE_DELETE_HOOKS:-[]}
+    postDelete: ${POST_DELETE_HOOKS:-[]}
+
+# Environment-specific overrides
+environments:
+  development:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    autoscaling:
+      enabled: false
+      
+  staging:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+      
+  production:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 2
+    monitoring:
+      enabled: true
+    backup:
+      enabled: true
+
+# Private registry specific configurations
+privateRegistry:
+  # Docker Hub private repositories
+  dockerHub:
+    enabled: ${DOCKER_HUB_PRIVATE_ENABLED:-false}
+    username: ${DOCKER_HUB_USERNAME:-}
+    password: ${DOCKER_HUB_PASSWORD:-}
+    
+  # GitHub Container Registry
+  ghcr:
+    enabled: ${GHCR_ENABLED:-false}
+    username: ${GHCR_USERNAME:-}
+    token: ${GHCR_TOKEN:-}
+    
+  # Harbor registry
+  harbor:
+    enabled: ${HARBOR_ENABLED:-false}
+    url: ${HARBOR_URL:-}
+    username: ${HARBOR_USERNAME:-}
+    password: ${HARBOR_PASSWORD:-}
+    project: ${HARBOR_PROJECT:-}
+    
+  # Nexus registry
+  nexus:
+    enabled: ${NEXUS_ENABLED:-false}
+    url: ${NEXUS_URL:-}
+    username: ${NEXUS_USERNAME:-}
+    password: ${NEXUS_PASSWORD:-}
+    
+  # AWS ECR
+  ecr:
+    enabled: ${ECR_ENABLED:-false}
+    region: ${ECR_REGION:-${AWS_REGION}}
+    accountId: ${ECR_ACCOUNT_ID:-}
+    registryUri: ${ECR_REGISTRY_URI:-}
+    
+  # Azure Container Registry
+  acr:
+    enabled: ${ACR_ENABLED:-false}
+    loginServer: ${ACR_LOGIN_SERVER:-}
+    username: ${ACR_USERNAME:-}
+    password: ${ACR_PASSWORD:-}
+    
+  # Google Container Registry
+  gcr:
+    enabled: ${GCR_ENABLED:-false}
+    projectId: ${GCR_PROJECT_ID:-}
+    keyFile: ${GCR_KEY_FILE:-}
+
+# Multi-region deployment support
+multiRegion:
+  enabled: ${MULTI_REGION_ENABLED:-false}
+  regions: ${MULTI_REGION_LIST:-}
+  
+  # Cross-region replication
+  replication:
+    enabled: ${CROSS_REGION_REPLICATION_ENABLED:-false}
+    backupRegion: ${BACKUP_REGION:-}
+
+# Compliance and governance
+compliance:
+  # SOC 2 compliance
+  soc2:
+    enabled: ${SOC2_COMPLIANCE:-false}
+    auditLogging: ${SOC2_AUDIT_LOGGING:-true}
+    
+  # HIPAA compliance
+  hipaa:
+    enabled: ${HIPAA_COMPLIANCE:-false}
+    encryption: ${HIPAA_ENCRYPTION:-true}
+    
+  # PCI DSS compliance
+  pci:
+    enabled: ${PCI_COMPLIANCE:-false}
+    networkSegmentation: ${PCI_NETWORK_SEGMENTATION:-true}
+
+# Performance testing
+performanceTesting:
+  # Load testing configuration
+  loadTesting:
+    enabled: ${LOAD_TESTING_ENABLED:-false}
+    tool: ${LOAD_TESTING_TOOL:-k6}
+    
+# Feature flags
+featureFlags:
+  enabled: ${FEATURE_FLAGS_ENABLED:-false}
+  provider: ${FEATURE_FLAGS_PROVIDER:-configmap}
+  configMapName: ${FEATURE_FLAGS_CONFIG_MAP:-feature-flags}
+
+# Additional custom configurations
+${ADDITIONAL_VALUES:-}

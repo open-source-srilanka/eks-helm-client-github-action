@@ -1,0 +1,370 @@
+apiVersion: v1
+kind: Config
+preferences:
+  # Enhanced settings for private cluster performance
+  colors: true
+  # Increase timeout for private network latency
+  requestTimeout: "${REQUEST_TIMEOUT:-60s}"
+
+# Private EKS cluster configuration
+clusters:
+- cluster:
+    # Private EKS API server endpoint (accessible only within VPC)
+    server: ${ENDPOINT_URL}
+    
+    # Certificate authority data from EKS cluster
+    certificate-authority-data: ${CA_CERT}
+    
+    # Private clusters require strict certificate validation
+    insecure-skip-tls-verify: false
+    
+    # Custom TLS server name for private endpoints (if needed)
+    tls-server-name: ${TLS_SERVER_NAME:-}
+    
+    # Custom CA file for private infrastructure
+    ${CUSTOM_CA_FILE}
+    
+    # HTTP proxy configuration for private networks
+    ${PROXY_URL}
+    
+    # Private cluster specific extensions
+    extensions:
+    - name: private-cluster-config
+      extension:
+        # VPC configuration
+        vpc-id: ${VPC_ID:-}
+        vpc-cidr: ${VPC_CIDR:-}
+        private-subnets: ${PRIVATE_SUBNETS:-}
+        
+        # VPC endpoints configuration
+        vpc-endpoints:
+          eks: ${EKS_VPC_ENDPOINT:-}
+          sts: ${STS_VPC_ENDPOINT:-}
+          ec2: ${EC2_VPC_ENDPOINT:-}
+          s3: ${S3_VPC_ENDPOINT:-}
+          ecr-api: ${ECR_API_VPC_ENDPOINT:-}
+          ecr-dkr: ${ECR_DKR_VPC_ENDPOINT:-}
+          
+        # DNS configuration for private resolution
+        private-dns-enabled: ${PRIVATE_DNS_ENABLED:-true}
+        dns-resolution: ${DNS_RESOLUTION:-private}
+        
+        # Network security
+        security-groups: ${SECURITY_GROUPS:-}
+        network-acls: ${NETWORK_ACLS:-}
+        
+        # Private cluster specific timeouts
+        connection-timeout: ${CONNECTION_TIMEOUT:-30s}
+        read-timeout: ${READ_TIMEOUT:-60s}
+        
+  name: ${CLUSTER_NAME}
+
+# Context configuration for private clusters
+contexts:
+- context:
+    cluster: ${CLUSTER_NAME}
+    user: ${USER_NAME:-aws-user-private}
+    
+    # Default namespace for private deployments
+    namespace: ${DEFAULT_NAMESPACE:-default}
+    
+    # Private cluster extensions
+    extensions:
+    - name: cluster-access-info
+      extension:
+        access-type: private
+        region: ${REGION_CODE}
+        cluster-arn: arn:aws:eks:${REGION_CODE}:${AWS_ACCOUNT_ID:-}:cluster/${CLUSTER_NAME}
+        endpoint-access: ${ENDPOINT_ACCESS:-private}
+        
+    - name: network-info
+      extension:
+        vpc-id: ${VPC_ID:-}
+        availability-zones: ${AVAILABILITY_ZONES:-}
+        private-cluster: true
+        bastion-host: ${BASTION_HOST:-}
+        
+    - name: security-info
+      extension:
+        encryption-at-rest: ${ENCRYPTION_AT_REST:-true}
+        encryption-in-transit: ${ENCRYPTION_IN_TRANSIT:-true}
+        private-endpoint-only: ${PRIVATE_ENDPOINT_ONLY:-true}
+        
+  name: ${CONTEXT_NAME:-private-aws-context}
+
+# Set the current context
+current-context: ${CONTEXT_NAME:-private-aws-context}
+
+# Enhanced user authentication for private clusters
+users:
+- name: ${USER_NAME:-aws-user-private}
+  user:
+    exec:
+      # AWS IAM Authenticator with private cluster optimizations
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: aws
+      
+      # Enhanced environment variables for private infrastructure
+      env:
+      # Primary AWS region
+      - name: AWS_REGION
+        value: ${REGION_CODE}
+      
+      # Default region (fallback)
+      - name: AWS_DEFAULT_REGION
+        value: ${REGION_CODE}
+      
+      # Use regional STS endpoints (critical for private clusters)
+      - name: AWS_STS_REGIONAL_ENDPOINTS
+        value: regional
+      
+      # Enhanced retry configuration for private networks
+      - name: AWS_MAX_ATTEMPTS
+        value: "${AWS_MAX_ATTEMPTS:-5}"
+      
+      # Adaptive retry mode for network issues
+      - name: AWS_RETRY_MODE
+        value: "${AWS_RETRY_MODE:-adaptive}"
+      
+      # Custom CA bundle for private infrastructure
+      ${CA_BUNDLE_ENV}
+      
+      # VPC endpoint URLs for private access
+      ${STS_ENDPOINT_URL_ENV}
+      ${EC2_ENDPOINT_URL_ENV}
+      ${EKS_ENDPOINT_URL_ENV}
+      
+      # HTTP proxy configuration
+      ${HTTP_PROXY_ENV}
+      ${HTTPS_PROXY_ENV}
+      ${NO_PROXY_ENV}
+      
+      # DNS configuration for private resolution
+      ${DNS_SERVER_ENV}
+      ${DNS_SEARCH_ENV}
+      
+      # AWS profile for private cluster access
+      ${AWS_PROFILE_ENV}
+      
+      # Web identity token (IRSA) with enhanced security
+      ${AWS_WEB_IDENTITY_TOKEN_FILE_ENV}
+      
+      # Role session configuration with audit trail
+      ${AWS_ROLE_SESSION_NAME_ENV}
+      
+      # Enhanced security configuration
+      - name: AWS_EC2_METADATA_DISABLED
+        value: "${AWS_EC2_METADATA_DISABLED:-false}"
+      
+      # Private cluster specific timeouts
+      - name: AWS_CLI_READ_TIMEOUT
+        value: "${AWS_CLI_READ_TIMEOUT:-60}"
+      
+      - name: AWS_CLI_CONNECT_TIMEOUT
+        value: "${AWS_CLI_CONNECT_TIMEOUT:-30}"
+      
+      # SSL/TLS configuration for private endpoints
+      - name: AWS_CLI_SSL_VERIFY
+        value: "${AWS_CLI_SSL_VERIFY:-true}"
+      
+      # Enhanced logging for private cluster troubleshooting
+      ${AWS_LOG_LEVEL_ENV}
+      
+      # Custom networking configuration
+      ${CUSTOM_NETWORK_ENV}
+      
+      # Additional private cluster environment variables
+      ${ADDITIONAL_PRIVATE_ENV_VARS}
+      
+      # AWS CLI command arguments optimized for private clusters
+      args:
+      # Specify region explicitly
+      - --region
+      - ${REGION_CODE}
+      
+      # EKS get-token command
+      - eks
+      - get-token
+      
+      # Target cluster name
+      - --cluster-name
+      - ${CLUSTER_NAME}
+      
+      # Enhanced output format for better error information
+      - --output
+      - json
+      
+      # CLI read timeout for private networks
+      - --cli-read-timeout
+      - "${CLI_READ_TIMEOUT:-60}"
+      
+      # CLI connect timeout for private networks  
+      - --cli-connect-timeout
+      - "${CLI_CONNECT_TIMEOUT:-30}"
+      
+      # Role ARN for private cluster access
+      ${ROLE_ARN_ARGS}
+      
+      # Custom STS endpoint for VPC endpoint
+      ${STS_ENDPOINT_ARGS}
+      
+      # Custom EC2 endpoint for VPC endpoint
+      ${EC2_ENDPOINT_ARGS}
+      
+      # Token duration for private clusters (shorter for security)
+      ${DURATION_SECONDS_ARGS}
+      
+      # Debug mode for private cluster troubleshooting
+      ${DEBUG_ARGS}
+      
+      # Additional arguments for private infrastructure
+      ${ADDITIONAL_PRIVATE_ARGS}
+      
+      # Provide enhanced cluster info for private clusters
+      provideClusterInfo: true
+      
+      # Interactive mode disabled for automation
+      interactiveMode: Never
+      
+      # Enhanced installation hint for private clusters
+      installHint: |
+        This is a private EKS cluster configuration requiring special network setup.
+        
+        Requirements:
+        1. Runner must be in the same VPC or have VPC connectivity
+        2. VPC endpoints must be configured for AWS services:
+           - com.amazonaws.${REGION_CODE}.eks
+           - com.amazonaws.${REGION_CODE}.sts  
+           - com.amazonaws.${REGION_CODE}.ec2
+           - com.amazonaws.${REGION_CODE}.s3
+           - com.amazonaws.${REGION_CODE}.ecr.api
+           - com.amazonaws.${REGION_CODE}.ecr.dkr
+        3. Security groups must allow HTTPS traffic (port 443)
+        4. DNS resolution must work for private endpoints
+        5. For GitHub Actions: use self-hosted runners in the VPC
+        
+        Troubleshooting:
+        - Check network connectivity: curl -I ${ENDPOINT_URL}
+        - Verify VPC endpoints: aws ec2 describe-vpc-endpoints
+        - Test DNS resolution: nslookup ${ENDPOINT_URL}
+        - Check security groups: aws ec2 describe-security-groups
+        
+        For support: Enable debug mode with INPUT_DEBUG=true
+
+# Private cluster specific configuration sections
+${PRIVATE_CLUSTER_CONFIG}
+
+# Enhanced extensions for private cluster management
+extensions:
+- name: private-eks-cluster-info
+  extension:
+    cluster-name: ${CLUSTER_NAME}
+    region: ${REGION_CODE}
+    endpoint: ${ENDPOINT_URL}
+    endpoint-access: private
+    vpc-id: ${VPC_ID:-}
+    platform-version: ${PLATFORM_VERSION:-}
+    kubernetes-version: ${KUBERNETES_VERSION:-}
+    
+    # Private cluster network configuration
+    network-config:
+      vpc-cidr: ${VPC_CIDR:-}
+      private-subnets: ${PRIVATE_SUBNETS:-}
+      availability-zones: ${AVAILABILITY_ZONES:-}
+      nat-gateway: ${NAT_GATEWAY:-}
+      internet-gateway: ${INTERNET_GATEWAY:-}
+      
+    # VPC endpoints configuration
+    vpc-endpoints:
+      eks-endpoint: ${EKS_VPC_ENDPOINT:-}
+      sts-endpoint: ${STS_VPC_ENDPOINT:-}
+      ec2-endpoint: ${EC2_VPC_ENDPOINT:-}
+      s3-endpoint: ${S3_VPC_ENDPOINT:-}
+      ecr-api-endpoint: ${ECR_API_VPC_ENDPOINT:-}
+      ecr-dkr-endpoint: ${ECR_DKR_VPC_ENDPOINT:-}
+      
+    # Security configuration
+    security-config:
+      encryption-at-rest: ${ENCRYPTION_AT_REST:-true}
+      encryption-in-transit: ${ENCRYPTION_IN_TRANSIT:-true}
+      envelope-encryption: ${ENVELOPE_ENCRYPTION_KEY:-}
+      security-groups: ${SECURITY_GROUPS:-}
+      network-acls: ${NETWORK_ACLS:-}
+      
+- name: private-authentication-info
+  extension:
+    auth-method: ${AUTH_METHOD:-aws-iam-private}
+    role-arn: ${ROLE_ARN:-}
+    session-name: ${AWS_ROLE_SESSION_NAME:-github-actions-private-cluster}
+    token-duration: ${TOKEN_DURATION:-3600}
+    
+    # Enhanced authentication for private clusters
+    private-auth-config:
+      vpc-endpoint-auth: ${VPC_ENDPOINT_AUTH:-true}
+      regional-sts: ${REGIONAL_STS:-true}
+      enhanced-security: ${ENHANCED_SECURITY:-true}
+      audit-logging: ${AUDIT_LOGGING:-true}
+      
+- name: private-network-info
+  extension:
+    network-type: private-vpc
+    dns-resolution: private
+    proxy-configuration: ${PROXY_CONFIGURATION:-}
+    
+    # Network performance tuning
+    performance-config:
+      connection-timeout: ${CONNECTION_TIMEOUT:-30s}
+      read-timeout: ${READ_TIMEOUT:-60s}
+      retry-attempts: ${RETRY_ATTEMPTS:-5}
+      retry-delay: ${RETRY_DELAY:-2s}
+      
+    # Connectivity validation
+    connectivity-checks:
+      eks-api-endpoint: ${ENDPOINT_URL}
+      sts-endpoint: ${STS_VPC_ENDPOINT:-}
+      dns-resolution: ${DNS_RESOLUTION_CHECK:-true}
+      
+- name: private-registry-info
+  extension:
+    # Private container registry configuration
+    private-registries:
+      ecr-private: ${ECR_PRIVATE_REGISTRY:-}
+      harbor-registry: ${HARBOR_REGISTRY:-}
+      nexus-registry: ${NEXUS_REGISTRY:-}
+      artifactory-registry: ${ARTIFACTORY_REGISTRY:-}
+      
+    # Registry VPC endpoints
+    registry-vpc-endpoints:
+      ecr-api: ${ECR_API_VPC_ENDPOINT:-}
+      ecr-dkr: ${ECR_DKR_VPC_ENDPOINT:-}
+      
+    # Registry authentication
+    registry-auth:
+      auto-login-ecr: ${AUTO_LOGIN_ECR:-true}
+      private-registry-auth: ${PRIVATE_REGISTRY_AUTH:-}
+      
+- name: private-troubleshooting-info
+  extension:
+    # Troubleshooting configuration for private clusters
+    debug-mode: ${DEBUG_MODE:-false}
+    enhanced-logging: ${ENHANCED_LOGGING:-false}
+    network-diagnostics: ${NETWORK_DIAGNOSTICS:-false}
+    
+    # Common troubleshooting commands
+    diagnostic-commands:
+      connectivity-test: "curl -I ${ENDPOINT_URL} --connect-timeout 10"
+      dns-test: "nslookup ${ENDPOINT_URL}"
+      vpc-endpoint-test: "aws ec2 describe-vpc-endpoints --region ${REGION_CODE}"
+      security-group-test: "aws ec2 describe-security-groups --region ${REGION_CODE}"
+      
+    # Support information
+    support-info:
+      documentation: "https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html"
+      vpc-endpoints-guide: "https://docs.aws.amazon.com/eks/latest/userguide/private-clusters.html"
+      troubleshooting-guide: "https://docs.aws.amazon.com/eks/latest/userguide/troubleshooting.html"
+
+# Additional private cluster specific configurations
+${ADDITIONAL_PRIVATE_CONFIG}
+
+# Custom private cluster extensions
+${ADDITIONAL_PRIVATE_EXTENSIONS}
