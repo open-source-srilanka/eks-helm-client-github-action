@@ -1,0 +1,41 @@
+# Hadolint configuration for Dockerfile linting
+# https://github.com/hadolint/hadolint
+
+# Rules to ignore
+ignored:
+    - DL3008  # Pin versions in apt get install (we use apk, not apt)
+    - DL3009  # Delete the apt-get lists after installing (we use apk, not apt)
+    - DL3015  # Avoid additional packages by specifying --no-install-recommends (apk specific)
+    - DL3018  # Pin versions in apk add (we want flexibility for security updates)
+    - DL4006  # Set the SHELL option -o pipefail (not needed for our use case)
+    - DL3020  # Use COPY instead of ADD for files and folders (we use COPY appropriately)
+  
+  # Trusted registries for base images
+  trustedRegistries:
+    - docker.io
+    - alpine
+    - gcr.io
+    - quay.io
+    - registry.k8s.io
+    - ghcr.io
+  
+  # Override specific rules
+  override:
+    error: []
+    warning: []
+    info: []
+    style: []
+  
+  # Strict mode (set to false for more lenient checking)
+  strict: false
+  
+  # Output format options: tty, json, checkstyle, codeclimate, gnu, codacy
+  format: tty
+  
+  # Dockerfile-specific configuration
+  failure-threshold: error
+  
+  # Additional settings
+  no-color: false
+  no-fail: false
+  
