@@ -144,6 +144,7 @@ jobs:
                   display: flex;
                   gap: 1rem;
                   flex-wrap: wrap;
+                  justify-content: center;
                 }
                 .navigation li { display: inline; }
                 .navigation a { 
@@ -200,12 +201,8 @@ jobs:
                 {{ content }}
 
                 <footer class="site-footer">
-                  <span class="site-footer-owner">
-                    <a href="{{ site.github.repository_url }}">{{ site.github.repository_name }}</a> 
-                    is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a>.
-                  </span>
                   <span class="site-footer-credits">
-                    Made with ❤️ & ☕ by <a href="https://dinushchathurya.me/">Dinush Chathurya</a> 
+                    <a href="{{ site.github.repository_url }}">{{ site.github.repository_name }}</a> Made with ❤️ & ☕ by <a href="https://dinushchathurya.me/">Dinush Chathurya</a> 
                     as a part of <a href="https://github.com/open-source-srilanka">ProjectOSS</a>
                   </span>
                 </footer>
