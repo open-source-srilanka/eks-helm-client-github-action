@@ -117,37 +117,46 @@ test_tools_availability() {
 test_tool_versions() {
     log_info "Checking tool versions..."
     
-    # Test kubectl version
+    # Test kubectl version (client only, no server connection needed)
     local kubectl_version
-    if kubectl_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "kubectl version --client --short 2>/dev/null || echo 'error'"); then
-        if [[ "$kubectl_version" != "error" ]]; then
+    if kubectl_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "kubectl version --client --short 2>/dev/null || kubectl version --client=true --short 2>/dev/null || kubectl version --client 2>/dev/null | head -1"); then
+        if [[ "$kubectl_version" != "error" && -n "$kubectl_version" ]]; then
             log_info "  ✓ kubectl: $kubectl_version"
         else
-            log_error "kubectl version check failed"
+            log_error "kubectl version check failed - no output"
             return 1
         fi
+    else
+        log_error "kubectl version command failed"
+        return 1
     fi
     
-    # Test helm version
+    # Test helm version (client only)
     local helm_version
-    if helm_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "helm version --short 2>/dev/null || echo 'error'"); then
-        if [[ "$helm_version" != "error" ]]; then
+    if helm_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "helm version --short --client 2>/dev/null || helm version --short 2>/dev/null || helm version 2>/dev/null | head -1"); then
+        if [[ "$helm_version" != "error" && -n "$helm_version" ]]; then
             log_info "  ✓ Helm: $helm_version"
         else
-            log_error "Helm version check failed"
+            log_error "Helm version check failed - no output"
             return 1
         fi
+    else
+        log_error "Helm version command failed"
+        return 1
     fi
     
     # Test AWS CLI version
     local aws_version
-    if aws_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "aws --version 2>/dev/null || echo 'error'"); then
-        if [[ "$aws_version" != "error" ]]; then
+    if aws_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "aws --version 2>&1 | head -1"); then
+        if [[ "$aws_version" != "error" && -n "$aws_version" ]]; then
             log_info "  ✓ AWS CLI: $aws_version"
         else
-            log_error "AWS CLI version check failed"
+            log_error "AWS CLI version check failed - no output"
             return 1
         fi
+    else
+        log_error "AWS CLI version command failed"
+        return 1
     fi
     
     return 0
