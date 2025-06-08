@@ -96,7 +96,8 @@ jobs:
         with:
           project: 'eks-helm-client-github-action'
           path: '.'
-          format: 'ALL'
+          format: 'SARIF'
+          out: './reports'
           args: >
             --enableRetired
             --enableExperimental
@@ -113,6 +114,9 @@ jobs:
           echo "## 📦 Dependency Security Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
+          echo "Listing reports directory:"
+          ls -al ./reports || echo "No reports directory found"
+
           if [[ -f "reports/dependency-check-report.sarif" ]]; then
             echo "✅ Dependency check report found" >> $GITHUB_STEP_SUMMARY
             echo "See [Dependency Check Report](reports/dependency-check-report.sarif)" >> $GITHUB_STEP_SUMMARY
