@@ -232,7 +232,7 @@ test_health_check() {
     # Test health check script directly
     local output
     if output=$(docker run --rm \
-        --entrypoint="/health-check.sh" \
+        --entrypoint="/test-health-check.sh" \
         "$DOCKER_IMAGE_TAG" 2>&1); then
         log_info "✓ Health check script executed successfully"
         return 0
