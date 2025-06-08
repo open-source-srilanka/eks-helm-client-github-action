@@ -3,6 +3,8 @@ name: Test
 on:
   push:
     branches: [ main, develop ]
+    tags:
+      - 'v*.*.*'
     paths-ignore:
       - '**.md'
       - 'docs/**'
