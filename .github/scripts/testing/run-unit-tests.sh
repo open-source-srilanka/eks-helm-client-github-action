@@ -6,48 +6,45 @@ set -e
 # Source shared testing utilities
 source "$(dirname "$0")/utils.sh"
 
-# Test counters
-TESTS_PASSED=0
-TESTS_FAILED=0
-TESTS_SKIPPED=0
-TEST_RESULTS=""
+# Reset counters for this script
+reset_counters
 
 setup_test_env() {
-    log_message "INFO" "Setting up test environment..."
+    log_info "Setting up test environment..."
     export TEST_DIR="/tmp/eks-helm-test-$$"
     
     # Create test directory with proper error handling
     if ! mkdir -p "$TEST_DIR"; then
-        log_message "FAIL" "Failed to create test directory: $TEST_DIR"
+        log_error "Failed to create test directory: $TEST_DIR"
         return 1
     fi
     
     # Set up cleanup trap
     trap cleanup_test_env EXIT
     
-    log_message "INFO" "Test environment ready: $TEST_DIR"
+    log_info "Test environment ready: $TEST_DIR"
     return 0
 }
 
 cleanup_test_env() {
     if [[ -n "$TEST_DIR" && -d "$TEST_DIR" ]]; then
-        log_message "INFO" "Cleaning up test environment: $TEST_DIR"
+        log_info "Cleaning up test environment: $TEST_DIR"
         rm -rf "$TEST_DIR" 2>/dev/null || true
     fi
 }
 
-# Helper function to safely test conditions
-safe_test() {
+# Helper function to run tests
+run_test() {
     local test_name="$1"
     local test_function="$2"
     
-    log_message "INFO" "Running test: $test_name"
+    log_info "Running test: $test_name"
     
     if $test_function; then
-        log_message "PASS" "$test_name"
+        log_test_result "PASS" "$test_name"
         return 0
     else
-        log_message "FAIL" "$test_name"
+        log_test_result "FAIL" "$test_name"
         return 1
     fi
 }
@@ -58,13 +55,13 @@ test_script_permissions() {
     
     for script in "${scripts[@]}"; do
         if [[ ! -f "$script" ]]; then
-            log_message "INFO" "✗ $script not found"
+            log_info "✗ $script not found"
             all_executable=false
         elif [[ ! -x "$script" ]]; then
-            log_message "INFO" "✗ $script not executable"
+            log_info "✗ $script not executable"
             all_executable=false
         else
-            log_message "INFO" "✓ $script is executable"
+            log_info "✓ $script is executable"
         fi
     done
     
@@ -77,10 +74,10 @@ test_required_files() {
     
     for file in "${files[@]}"; do
         if [[ ! -f "$file" ]]; then
-            log_message "INFO" "✗ $file not found"
+            log_info "✗ $file not found"
             all_exist=false
         else
-            log_message "INFO" "✓ $file exists"
+            log_info "✓ $file exists"
         fi
     done
     
@@ -89,7 +86,7 @@ test_required_files() {
 
 test_dockerfile_syntax() {
     if [[ ! -f "Dockerfile" ]]; then
-        log_message "INFO" "✗ Dockerfile not found"
+        log_info "✗ Dockerfile not found"
         return 1
     fi
     
@@ -98,17 +95,17 @@ test_dockerfile_syntax() {
     local has_entrypoint=false
     
     if grep -q "^FROM " Dockerfile; then
-        log_message "INFO" "✓ Dockerfile has FROM instruction"
+        log_info "✓ Dockerfile has FROM instruction"
         has_from=true
     else
-        log_message "INFO" "✗ Dockerfile missing FROM instruction"
+        log_info "✗ Dockerfile missing FROM instruction"
     fi
     
     if grep -q "^ENTRYPOINT " Dockerfile || grep -q "^CMD " Dockerfile; then
-        log_message "INFO" "✓ Dockerfile has entry point"
+        log_info "✓ Dockerfile has entry point"
         has_entrypoint=true
     else
-        log_message "INFO" "✗ Dockerfile missing ENTRYPOINT or CMD instruction"
+        log_info "✗ Dockerfile missing ENTRYPOINT or CMD instruction"
     fi
     
     return $([[ "$has_from" == "true" && "$has_entrypoint" == "true" ]] && echo 0 || echo 1)
@@ -116,7 +113,7 @@ test_dockerfile_syntax() {
 
 test_action_yml_syntax() {
     if [[ ! -f "action.yml" ]]; then
-        log_message "INFO" "✗ action.yml not found"
+        log_info "✗ action.yml not found"
         return 1
     fi
     
@@ -126,18 +123,18 @@ test_action_yml_syntax() {
     
     for field in "${required_fields[@]}"; do
         if grep -q "^${field}" action.yml; then
-            log_message "INFO" "✓ action.yml has $field"
+            log_info "✓ action.yml has $field"
         else
-            log_message "INFO" "✗ action.yml missing $field"
+            log_info "✗ action.yml missing $field"
             all_present=false
         fi
     done
     
     # Check Docker configuration
     if grep -q "using: 'docker'" action.yml && grep -q "image: 'Dockerfile'" action.yml; then
-        log_message "INFO" "✓ action.yml configured for Docker"
+        log_info "✓ action.yml configured for Docker"
     else
-        log_message "INFO" "✗ action.yml Docker configuration invalid"
+        log_info "✗ action.yml Docker configuration invalid"
         all_present=false
     fi
     
@@ -150,16 +147,16 @@ test_template_files() {
     
     for template in "${templates[@]}"; do
         if [[ ! -f "$template" ]]; then
-            log_message "INFO" "✗ $template not found"
+            log_info "✗ $template not found"
             all_valid=false
             continue
         fi
         
         # Check for required template variables
         if grep -q '\${CLUSTER_NAME}' "$template" && grep -q '\${REGION_CODE}' "$template"; then
-            log_message "INFO" "✓ $template has required variables"
+            log_info "✓ $template has required variables"
         else
-            log_message "INFO" "✗ $template missing required variables"
+            log_info "✗ $template missing required variables"
             all_valid=false
         fi
     done
@@ -173,23 +170,24 @@ test_script_syntax() {
     
     for script in "${scripts[@]}"; do
         if [[ ! -f "$script" ]]; then
-            log_message "INFO" "⚠ $script not found (skipping syntax check)"
+            log_warn "$script not found (skipping syntax check)"
             continue
         fi
         
         # Basic bash syntax check
         if bash -n "$script" 2>/dev/null; then
-            log_message "INFO" "✓ $script syntax valid"
+            log_info "✓ $script syntax valid"
         else
-            log_message "INFO" "✗ $script syntax error"
+            log_info "✗ $script syntax error"
             all_valid=false
         fi
         
         # Check for shebang
         if head -1 "$script" | grep -q "^#!/bin/bash"; then
-            log_message "INFO" "✓ $script has proper shebang"
+            log_info "✓ $script has proper shebang"
         else
-            log_message "INFO" "⚠ $script missing proper shebang"
+            log_warn "$script missing proper shebang"
+            increment_warnings
         fi
     done
     
@@ -202,14 +200,14 @@ test_documentation() {
     
     for doc in "${docs[@]}"; do
         if [[ ! -f "$doc" ]]; then
-            log_message "INFO" "✗ $doc not found"
+            log_info "✗ $doc not found"
             all_present=false
         else
             # Check if file is not empty
             if [[ -s "$doc" ]]; then
-                log_message "INFO" "✓ $doc exists and is not empty"
+                log_info "✓ $doc exists and is not empty"
             else
-                log_message "INFO" "✗ $doc is empty"
+                log_info "✗ $doc is empty"
                 all_present=false
             fi
         fi
@@ -224,16 +222,16 @@ test_github_workflows() {
     
     for workflow in "${workflows[@]}"; do
         if [[ ! -f "$workflow" ]]; then
-            log_message "INFO" "✗ $workflow not found"
+            log_info "✗ $workflow not found"
             all_valid=false
             continue
         fi
         
         # Basic structure check (don't require yq)
         if grep -q "^name:" "$workflow" && grep -q "^on:" "$workflow"; then
-            log_message "INFO" "✓ $workflow has basic structure"
+            log_info "✓ $workflow has basic structure"
         else
-            log_message "INFO" "✗ $workflow missing required fields"
+            log_info "✗ $workflow missing required fields"
             all_valid=false
         fi
     done
@@ -242,90 +240,26 @@ test_github_workflows() {
 }
 
 main() {
-    log_message "INFO" "=== EKS Helm Client Unit Tests ===" "Starting tests"
+    log_info "=== EKS Helm Client Unit Tests ==="
     
     # Setup test environment
     if ! setup_test_env; then
-        log_message "FAIL" "Failed to setup test environment"
+        log_error "Failed to setup test environment"
         exit 1
     fi
     
-    # Track results manually
-    local test_results=()
+    # Run all tests
+    run_test "Script Permissions" test_script_permissions
+    run_test "Required Files" test_required_files
+    run_test "Dockerfile Syntax" test_dockerfile_syntax
+    run_test "action.yml Syntax" test_action_yml_syntax
+    run_test "Template Files" test_template_files
+    run_test "Script Syntax" test_script_syntax
+    run_test "Documentation" test_documentation
+    run_test "GitHub Workflows" test_github_workflows
     
-    # Run all tests and capture results
-    if safe_test "Script Permissions" test_script_permissions; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "Required Files" test_required_files; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "Dockerfile Syntax" test_dockerfile_syntax; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "action.yml Syntax" test_action_yml_syntax; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "Template Files" test_template_files; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "Script Syntax" test_script_syntax; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "Documentation" test_documentation; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    if safe_test "GitHub Workflows" test_github_workflows; then
-        test_results+=("PASS")
-    else
-        test_results+=("FAIL")
-    fi
-    
-    # Count results
-    local passed=0
-    local failed=0
-    
-    for result in "${test_results[@]}"; do
-        if [[ "$result" == "PASS" ]]; then
-            ((passed++))
-        else
-            ((failed++))
-        fi
-    done
-    
-    echo -e "\n${BLUE}=== Test Results Summary ===${NC}"
-    echo -e "${GREEN}Passed:${NC} $passed"
-    echo -e "${RED}Failed:${NC} $failed"
-    echo -e "${YELLOW}Skipped:${NC} 0"
-    
-    if [[ $failed -gt 0 ]]; then
-        echo -e "${RED}[FAIL]${NC} Unit tests failed! ($failed failures)"
-        exit 1
-    else
-        echo -e "${GREEN}[PASS]${NC} All unit tests passed! ($passed tests)"
-        exit 0
-    fi
+    # Exit with summary
+    exit_with_summary "Unit Tests"
 }
 
 main

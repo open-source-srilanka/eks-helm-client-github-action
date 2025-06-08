@@ -6,59 +6,73 @@ set -e
 # Source shared testing utilities
 source "$(dirname "$0")/utils.sh"
 
+# Reset counters for this script
+reset_counters
+
 # Test configuration
 readonly TEST_CLUSTER_NAME="${TEST_CLUSTER_NAME:-test-eks-cluster}"
 readonly TEST_REGION="${TEST_REGION:-us-west-2}"
 readonly DOCKER_IMAGE_TAG="${DOCKER_IMAGE_TAG:-eks-helm-client:test}"
 
-# Test counters
-TESTS_PASSED=0
-TESTS_FAILED=0
-TESTS_SKIPPED=0
-
 check_prerequisites() {
-    log_message "INFO" "Checking prerequisites"
+    log_info "Checking prerequisites"
     if ! command -v docker >/dev/null 2>&1; then
-        log_message "FAIL" "Prerequisites" "Docker is required for integration tests"
+        log_error "Docker is required for integration tests"
         exit 1
     fi
     
     # Check if we're in GitHub Actions
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-        log_message "INFO" "Running in GitHub Actions environment"
+        log_info "Running in GitHub Actions environment"
     else
-        log_message "INFO" "Running in local environment"
+        log_info "Running in local environment"
+    fi
+    
+    log_success "Prerequisites check passed"
+}
+
+# Helper function to run tests
+run_test() {
+    local test_name="$1"
+    local test_function="$2"
+    
+    log_info "Running test: $test_name"
+    
+    if $test_function; then
+        log_test_result "PASS" "$test_name"
+        return 0
+    else
+        log_test_result "FAIL" "$test_name"
+        return 1
     fi
 }
 
 test_docker_build() {
-    local test_name="Docker Image Build"
-    log_message "INFO" "Building Docker image..."
+    log_info "Building Docker image: $DOCKER_IMAGE_TAG"
     
     # Capture both stdout and stderr
     local build_output
     if build_output=$(docker build -t "$DOCKER_IMAGE_TAG" . 2>&1); then
-        log_message "PASS" "$test_name"
+        log_info "Docker build completed successfully"
         
         # Check image exists
         if docker images "$DOCKER_IMAGE_TAG" --format "table {{.Repository}}:{{.Tag}}" | grep -q "$DOCKER_IMAGE_TAG"; then
-            log_message "INFO" "Docker image created successfully: $DOCKER_IMAGE_TAG"
+            log_info "✓ Docker image created: $DOCKER_IMAGE_TAG"
+            return 0
         else
-            log_message "FAIL" "$test_name" "Image not found after build"
+            log_error "Image not found after build"
             return 1
         fi
     else
-        log_message "FAIL" "$test_name" "Docker build failed"
-        echo "Build output:"
-        echo "$build_output"
+        log_error "Docker build failed"
+        echo "Build output:" >&2
+        echo "$build_output" >&2
         return 1
     fi
 }
 
 test_container_startup() {
-    local test_name="Container Startup"
-    
-    log_message "INFO" "Testing container startup..."
+    log_info "Testing container startup..."
     
     # Test basic container startup without executing entrypoint
     local output
@@ -68,55 +82,48 @@ test_container_startup() {
         -c "echo 'Container started successfully'" 2>&1); then
         
         if echo "$output" | grep -q "Container started successfully"; then
-            log_message "PASS" "$test_name"
+            log_info "✓ Container starts successfully"
+            return 0
         else
-            log_message "FAIL" "$test_name" "Unexpected output: $output"
+            log_error "Unexpected container output: $output"
             return 1
         fi
     else
-        log_message "FAIL" "$test_name" "Container failed to start"
-        echo "Container output:"
-        echo "$output"
+        log_error "Container failed to start"
+        echo "Container output:" >&2
+        echo "$output" >&2
         return 1
     fi
 }
 
 test_tools_availability() {
-    local test_name="Tools Availability"
     local tools=("kubectl" "helm" "aws" "jq" "curl")
     local all_available=true
     
-    log_message "INFO" "Checking tool availability in container..."
+    log_info "Checking tool availability in container..."
     
     for tool in "${tools[@]}"; do
         if docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "command -v $tool" >/dev/null 2>&1; then
-            log_message "INFO" "  ✓ $tool available"
+            log_info "  ✓ $tool available"
         else
-            log_message "FAIL" "  ✗ $tool not available"
+            log_info "  ✗ $tool not available"
             all_available=false
         fi
     done
     
-    if [[ "$all_available" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    else
-        log_message "FAIL" "$test_name" "Some required tools are missing"
-        return 1
-    fi
+    return $([[ "$all_available" == "true" ]] && echo 0 || echo 1)
 }
 
 test_tool_versions() {
-    local test_name="Tool Versions"
-    
-    log_message "INFO" "Checking tool versions..."
+    log_info "Checking tool versions..."
     
     # Test kubectl version
     local kubectl_version
     if kubectl_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "kubectl version --client --short 2>/dev/null || echo 'error'"); then
         if [[ "$kubectl_version" != "error" ]]; then
-            log_message "INFO" "  ✓ kubectl: $kubectl_version"
+            log_info "  ✓ kubectl: $kubectl_version"
         else
-            log_message "FAIL" "  ✗ kubectl version check failed"
+            log_error "kubectl version check failed"
             return 1
         fi
     fi
@@ -125,9 +132,9 @@ test_tool_versions() {
     local helm_version
     if helm_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "helm version --short 2>/dev/null || echo 'error'"); then
         if [[ "$helm_version" != "error" ]]; then
-            log_message "INFO" "  ✓ Helm: $helm_version"
+            log_info "  ✓ Helm: $helm_version"
         else
-            log_message "FAIL" "  ✗ Helm version check failed"
+            log_error "Helm version check failed"
             return 1
         fi
     fi
@@ -136,20 +143,18 @@ test_tool_versions() {
     local aws_version
     if aws_version=$(docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "aws --version 2>/dev/null || echo 'error'"); then
         if [[ "$aws_version" != "error" ]]; then
-            log_message "INFO" "  ✓ AWS CLI: $aws_version"
+            log_info "  ✓ AWS CLI: $aws_version"
         else
-            log_message "FAIL" "  ✗ AWS CLI version check failed"
+            log_error "AWS CLI version check failed"
             return 1
         fi
     fi
     
-    log_message "PASS" "$test_name"
+    return 0
 }
 
 test_dry_run_mode() {
-    local test_name="Dry Run Mode"
-    
-    log_message "INFO" "Testing dry run mode..."
+    log_info "Testing dry run mode..."
     
     local output
     if output=$(docker run --rm \
@@ -160,25 +165,24 @@ test_dry_run_mode() {
         "$DOCKER_IMAGE_TAG" 2>&1); then
         
         if echo "$output" | grep -q "DRY RUN MODE"; then
-            log_message "PASS" "$test_name"
+            log_info "✓ Dry run mode detected correctly"
+            return 0
         else
-            log_message "FAIL" "$test_name" "Dry run mode not detected"
-            echo "Output:"
-            echo "$output"
+            log_error "Dry run mode not detected"
+            echo "Output:" >&2
+            echo "$output" >&2
             return 1
         fi
     else
-        log_message "FAIL" "$test_name" "Dry run execution failed"
-        echo "Output:"
-        echo "$output"
+        log_error "Dry run execution failed"
+        echo "Output:" >&2
+        echo "$output" >&2
         return 1
     fi
 }
 
 test_error_handling() {
-    local test_name="Error Handling"
-    
-    log_message "INFO" "Testing error handling..."
+    log_info "Testing error handling for missing parameters..."
     
     # Test missing cluster name
     local output
@@ -188,43 +192,41 @@ test_error_handling() {
         "$DOCKER_IMAGE_TAG" 2>&1); then
         
         # Should fail with missing cluster name
-        log_message "FAIL" "$test_name" "Should have failed with missing cluster name"
+        log_error "Should have failed with missing cluster name"
         return 1
     else
         if echo "$output" | grep -q "CLUSTER_NAME is required"; then
-            log_message "PASS" "$test_name"
+            log_info "✓ Proper error handling for missing cluster name"
+            return 0
         else
-            log_message "FAIL" "$test_name" "Did not produce expected error for missing cluster-name"
-            echo "Output:"
-            echo "$output"
+            log_error "Did not produce expected error for missing cluster-name"
+            echo "Output:" >&2
+            echo "$output" >&2
             return 1
         fi
     fi
 }
 
 test_health_check() {
-    local test_name="Health Check"
-    
-    log_message "INFO" "Testing health check script..."
+    log_info "Testing health check script..."
     
     # Test health check script directly
     local output
     if output=$(docker run --rm \
         --entrypoint="/health-check.sh" \
         "$DOCKER_IMAGE_TAG" 2>&1); then
-        log_message "PASS" "$test_name"
+        log_info "✓ Health check script executed successfully"
+        return 0
     else
-        log_message "FAIL" "$test_name" "Health check script failed"
-        echo "Health check output:"
-        echo "$output"
+        log_error "Health check script failed"
+        echo "Health check output:" >&2
+        echo "$output" >&2
         return 1
     fi
 }
 
 test_template_validation() {
-    local test_name="Template Validation"
-    
-    log_message "INFO" "Testing configuration templates..."
+    log_info "Testing configuration templates..."
     
     # Test that templates exist and have required variables
     local output
@@ -234,57 +236,76 @@ test_template_validation() {
         -c "ls -la /config.template /private-config.template 2>/dev/null || echo 'templates missing'" 2>&1); then
         
         if echo "$output" | grep -q "templates missing"; then
-            log_message "FAIL" "$test_name" "Configuration templates missing"
+            log_error "Configuration templates missing"
             return 1
         else
-            log_message "PASS" "$test_name"
+            log_info "✓ Configuration templates present"
+            return 0
         fi
     else
-        log_message "FAIL" "$test_name" "Template validation failed"
+        log_error "Template validation failed"
         return 1
     fi
 }
 
 test_script_permissions() {
-    local test_name="Script Permissions"
-    
-    log_message "INFO" "Testing script permissions..."
+    log_info "Testing script permissions in container..."
     
     local scripts=("/entrypoint.sh" "/health-check.sh" "/setup-tools.sh" "/cleanup.sh")
     local all_executable=true
     
     for script in "${scripts[@]}"; do
         if docker run --rm --entrypoint="/bin/sh" "$DOCKER_IMAGE_TAG" -c "test -x $script" 2>/dev/null; then
-            log_message "INFO" "  ✓ $script is executable"
+            log_info "  ✓ $script is executable"
         else
-            log_message "FAIL" "  ✗ $script is not executable"
+            log_info "  ✗ $script is not executable"
             all_executable=false
         fi
     done
     
-    if [[ "$all_executable" == "true" ]]; then
-        log_message "PASS" "$test_name"
+    return $([[ "$all_executable" == "true" ]] && echo 0 || echo 1)
+}
+
+test_environment_variables() {
+    log_info "Testing environment variable handling..."
+    
+    local output
+    if output=$(docker run --rm \
+        --entrypoint="/bin/sh" \
+        "$DOCKER_IMAGE_TAG" \
+        -c "echo KUBECONFIG=\$KUBECONFIG; echo HELM_HOME=\$HELM_HOME" 2>&1); then
+        
+        if echo "$output" | grep -q "KUBECONFIG=" && echo "$output" | grep -q "HELM_HOME="; then
+            log_info "✓ Environment variables are set correctly"
+            return 0
+        else
+            log_error "Environment variables not set correctly"
+            echo "Output:" >&2
+            echo "$output" >&2
+            return 1
+        fi
     else
-        log_message "FAIL" "$test_name" "Some scripts are not executable"
+        log_error "Environment variable test failed"
         return 1
     fi
 }
 
 cleanup_test_images() {
-    log_message "INFO" "Cleaning up test images..."
+    log_info "Cleaning up test images..."
     
     # Remove test image if it exists
     if docker images "$DOCKER_IMAGE_TAG" --format "table {{.Repository}}:{{.Tag}}" | grep -q "$DOCKER_IMAGE_TAG"; then
         if docker rmi "$DOCKER_IMAGE_TAG" >/dev/null 2>&1; then
-            log_message "INFO" "Test image removed: $DOCKER_IMAGE_TAG"
+            log_info "Test image removed: $DOCKER_IMAGE_TAG"
         else
-            log_message "WARN" "Failed to remove test image: $DOCKER_IMAGE_TAG"
+            log_warn "Failed to remove test image: $DOCKER_IMAGE_TAG"
+            increment_warnings
         fi
     fi
 }
 
 main() {
-    log_message "INFO" "=== EKS Helm Client Integration Tests ===" "Starting tests"
+    log_info "=== EKS Helm Client Integration Tests ==="
     
     # Set up cleanup on exit
     trap cleanup_test_images EXIT
@@ -293,27 +314,19 @@ main() {
     check_prerequisites
     
     # Run tests in order
-    test_docker_build || exit 1
-    test_container_startup
-    test_tools_availability
-    test_tool_versions
-    test_dry_run_mode
-    test_error_handling
-    test_health_check
-    test_template_validation
-    test_script_permissions
+    run_test "Docker Image Build" test_docker_build || exit 1
+    run_test "Container Startup" test_container_startup
+    run_test "Tools Availability" test_tools_availability
+    run_test "Tool Versions" test_tool_versions
+    run_test "Dry Run Mode" test_dry_run_mode
+    run_test "Error Handling" test_error_handling
+    run_test "Health Check" test_health_check
+    run_test "Template Validation" test_template_validation
+    run_test "Script Permissions" test_script_permissions
+    run_test "Environment Variables" test_environment_variables
     
-    log_message "INFO" "=== Test Results Summary ==="
-    echo -e "${GREEN}Passed:${NC} $TESTS_PASSED"
-    echo -e "${RED}Failed:${NC} $TESTS_FAILED"
-    echo -e "${YELLOW}Skipped:${NC} $TESTS_SKIPPED"
-    
-    if [[ $TESTS_FAILED -gt 0 ]]; then
-        log_message "FAIL" "Integration tests failed!"
-        exit 1
-    else
-        log_message "PASS" "All integration tests passed!"
-    fi
+    # Exit with summary
+    exit_with_summary "Integration Tests"
 }
 
 main
