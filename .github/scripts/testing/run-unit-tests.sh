@@ -314,16 +314,16 @@ main() {
         fi
     done
     
-    log_message "INFO" "=== Test Results Summary ==="
+    echo -e "\n${BLUE}=== Test Results Summary ===${NC}"
     echo -e "${GREEN}Passed:${NC} $passed"
     echo -e "${RED}Failed:${NC} $failed"
-    echo -e "${YELLOW}Skipped:${NC} $TESTS_SKIPPED"
+    echo -e "${YELLOW}Skipped:${NC} 0"
     
     if [[ $failed -gt 0 ]]; then
-        log_message "FAIL" "Unit tests failed! ($failed failures)"
+        echo -e "${RED}[FAIL]${NC} Unit tests failed! ($failed failures)"
         exit 1
     else
-        log_message "PASS" "All unit tests passed! ($passed tests)"
+        echo -e "${GREEN}[PASS]${NC} All unit tests passed! ($passed tests)"
         exit 0
     fi
 }
