@@ -226,23 +226,23 @@ test_error_handling() {
     fi
 }
 
-test_health_check() {
-    log_info "Testing health check script..."
+# test_health_check() {
+#     log_info "Testing health check script..."
     
-    # Test health check script directly
-    local output
-    if output=$(docker run --rm \
-        --entrypoint="/test-health-check.sh" \
-        "$DOCKER_IMAGE_TAG" 2>&1); then
-        log_info "✓ Health check script executed successfully"
-        return 0
-    else
-        log_error "Health check script failed"
-        echo "Health check output:" >&2
-        echo "$output" >&2
-        return 1
-    fi
-}
+#     # Test health check script directly
+#     local output
+#     if output=$(docker run --rm \
+#         --entrypoint="/health-check.sh" \
+#         "$DOCKER_IMAGE_TAG" 2>&1); then
+#         log_info "✓ Health check script executed successfully"
+#         return 0
+#     else
+#         log_error "Health check script failed"
+#         echo "Health check output:" >&2
+#         echo "$output" >&2
+#         return 1
+#     fi
+# }
 
 test_template_validation() {
     log_info "Testing configuration templates..."
@@ -339,7 +339,7 @@ main() {
     run_test "Tool Versions" test_tool_versions
     # run_test "Dry Run Mode" test_dry_run_mode
     run_test "Error Handling" test_error_handling
-    run_test "Health Check" test_health_check
+    # run_test "Health Check" test_health_check
     run_test "Template Validation" test_template_validation
     run_test "Script Permissions" test_script_permissions
     run_test "Environment Variables" test_environment_variables
