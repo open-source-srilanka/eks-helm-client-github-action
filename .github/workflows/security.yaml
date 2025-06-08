@@ -223,7 +223,7 @@ jobs:
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest
-    needs: [docker-scan, dockerfile-lint, dependency-check, security-policy, license-check]
+    needs: [docker-scan, dockerfile-lint, security-policy, license-check]
     if: always()
     
     steps:
