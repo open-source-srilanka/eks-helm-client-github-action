@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 2.1.0, 2.1.0-rc.1)'
+        required: true
+        type: string
+
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup
+        id: setup
+        run: |
+          chmod +x .github/scripts/release/*.sh
+          .github/scripts/release/setup-release-vars.sh
+
+      - name: Build
+        run: .github/scripts/release/build-and-test.sh
+
+      - name: Changelog
+        id: changelog
+        run: .github/scripts/release/generate-changelog.sh
+
+      - name: Tag
+        run: .github/scripts/release/create-tag.sh
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.setup.outputs.tag_name }}
+          name: v${{ steps.setup.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          prerelease: ${{ steps.setup.outputs.is_prerelease }}
+
+      - name: Notify
+        run: .github/scripts/release/marketplace-notice.sh
