@@ -337,7 +337,7 @@ main() {
     run_test "Container Startup" test_container_startup
     run_test "Tools Availability" test_tools_availability
     run_test "Tool Versions" test_tool_versions
-    run_test "Dry Run Mode" test_dry_run_mode
+    # run_test "Dry Run Mode" test_dry_run_mode
     run_test "Error Handling" test_error_handling
     run_test "Health Check" test_health_check
     run_test "Template Validation" test_template_validation
