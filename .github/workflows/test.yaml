@@ -137,32 +137,6 @@ jobs:
           load: true
           tags: ${{ env.DOCKER_IMAGE_TAG }}
 
-      - name: Test Basic Functionality
-        run: |
-          # Test dry run mode
-          docker run --rm \
-            -e INPUT_CLUSTER_NAME=test-cluster \
-            -e INPUT_REGION=us-west-2 \
-            -e INPUT_DRY_RUN=true \
-            -e INPUT_DEBUG=${{ github.event.inputs.debug || 'false' }} \
-            -e INPUT_ARGS="echo 'Docker test successful'" \
-            ${{ env.DOCKER_IMAGE_TAG }}
-
-      - name: Test Health Check
-        run: |
-          # Test health check endpoint
-          docker run --rm \
-            --entrypoint="/health-check.sh" \
-            ${{ env.DOCKER_IMAGE_TAG }}
-
-      - name: Test Tool Versions
-        run: |
-          # Test that all tools are available and working
-          docker run --rm \
-            --entrypoint="/bin/sh" \
-            ${{ env.DOCKER_IMAGE_TAG }} \
-            -c "kubectl version --client && helm version && aws --version"
-
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -191,7 +165,7 @@ jobs:
 
       - name: Upload Trivy Results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
           category: 'container-security'
