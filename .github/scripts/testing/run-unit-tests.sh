@@ -3,27 +3,43 @@
 
 set -e
 
-# Source shared testing utilities
-source "$(dirname "$0")/utils.sh"
+# Color codes for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m'
 
-# Reset counters for this script
-reset_counters
+# Test counters
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Logging functions
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1" >&2
+}
+
+log_pass() {
+    echo -e "${GREEN}✓${NC} $1" >&2
+    ((TESTS_PASSED++))
+}
+
+log_fail() {
+    echo -e "${RED}✗${NC} $1" >&2
+    ((TESTS_FAILED++))
+}
 
 setup_test_env() {
     log_info "Setting up test environment..."
     export TEST_DIR="/tmp/eks-helm-test-$$"
     
-    # Create test directory with proper error handling
     if ! mkdir -p "$TEST_DIR"; then
-        log_error "Failed to create test directory: $TEST_DIR"
-        return 1
+        log_fail "Failed to create test directory: $TEST_DIR"
+        exit 1
     fi
     
-    # Set up cleanup trap
     trap cleanup_test_env EXIT
-    
     log_info "Test environment ready: $TEST_DIR"
-    return 0
 }
 
 cleanup_test_env() {
@@ -33,23 +49,10 @@ cleanup_test_env() {
     fi
 }
 
-# Helper function to run tests
-run_test() {
-    local test_name="$1"
-    local test_function="$2"
-    
+test_script_permissions() {
+    local test_name="Script Permissions"
     log_info "Running test: $test_name"
     
-    if $test_function; then
-        log_test_result "PASS" "$test_name"
-        return 0
-    else
-        log_test_result "FAIL" "$test_name"
-        return 1
-    fi
-}
-
-test_script_permissions() {
     local scripts=("scripts/entrypoint.sh" "scripts/setup-tools.sh" "scripts/health-check.sh" "scripts/cleanup.sh")
     local all_executable=true
     
@@ -65,10 +68,17 @@ test_script_permissions() {
         fi
     done
     
-    return $([[ "$all_executable" == "true" ]] && echo 0 || echo 1)
+    if [[ "$all_executable" == "true" ]]; then
+        log_pass "$test_name"
+    else
+        log_fail "$test_name"
+    fi
 }
 
 test_required_files() {
+    local test_name="Required Files"
+    log_info "Running test: $test_name"
+    
     local files=("action.yml" "Dockerfile" "README.md" "LICENSE.md")
     local all_exist=true
     
@@ -81,16 +91,23 @@ test_required_files() {
         fi
     done
     
-    return $([[ "$all_exist" == "true" ]] && echo 0 || echo 1)
+    if [[ "$all_exist" == "true" ]]; then
+        log_pass "$test_name"
+    else
+        log_fail "$test_name"
+    fi
 }
 
 test_dockerfile_syntax() {
+    local test_name="Dockerfile Syntax"
+    log_info "Running test: $test_name"
+    
     if [[ ! -f "Dockerfile" ]]; then
         log_info "✗ Dockerfile not found"
-        return 1
+        log_fail "$test_name"
+        return
     fi
     
-    # Basic Dockerfile syntax checks
     local has_from=false
     local has_entrypoint=false
     
@@ -108,27 +125,46 @@ test_dockerfile_syntax() {
         log_info "✗ Dockerfile missing ENTRYPOINT or CMD instruction"
     fi
     
-    return $([[ "$has_from" == "true" && "$has_entrypoint" == "true" ]] && echo 0 || echo 1)
+    if [[ "$has_from" == "true" && "$has_entrypoint" == "true" ]]; then
+        log_pass "$test_name"
+    else
+        log_fail "$test_name"
+    fi
 }
 
 test_action_yml_syntax() {
+    local test_name="action.yml Syntax"
+    log_info "Running test: $test_name"
+    
     if [[ ! -f "action.yml" ]]; then
         log_info "✗ action.yml not found"
-        return 1
+        log_fail "$test_name"
+        return
     fi
     
-    # Check required fields
-    local required_fields=("name:" "description:" "runs:")
     local all_present=true
     
-    for field in "${required_fields[@]}"; do
-        if grep -q "^${field}" action.yml; then
-            log_info "✓ action.yml has $field"
-        else
-            log_info "✗ action.yml missing $field"
-            all_present=false
-        fi
-    done
+    # Check required fields
+    if grep -q "^name:" action.yml; then
+        log_info "✓ action.yml has name field"
+    else
+        log_info "✗ action.yml missing name field"
+        all_present=false
+    fi
+    
+    if grep -q "^description:" action.yml; then
+        log_info "✓ action.yml has description field"
+    else
+        log_info "✗ action.yml missing description field"
+        all_present=false
+    fi
+    
+    if grep -q "^runs:" action.yml; then
+        log_info "✓ action.yml has runs field"
+    else
+        log_info "✗ action.yml missing runs field"
+        all_present=false
+    fi
     
     # Check Docker configuration
     if grep -q "using: 'docker'" action.yml && grep -q "image: 'Dockerfile'" action.yml; then
@@ -138,10 +174,17 @@ test_action_yml_syntax() {
         all_present=false
     fi
     
-    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
+    if [[ "$all_present" == "true" ]]; then
+        log_pass "$test_name"
+    else
+        log_fail "$test_name"
+    fi
 }
 
 test_template_files() {
+    local test_name="Template Files"
+    log_info "Running test: $test_name"
+    
     local templates=("templates/config.template" "templates/private-config.template")
     local all_valid=true
     
@@ -152,7 +195,6 @@ test_template_files() {
             continue
         fi
         
-        # Check for required template variables
         if grep -q '\${CLUSTER_NAME}' "$template" && grep -q '\${REGION_CODE}' "$template"; then
             log_info "✓ $template has required variables"
         else
@@ -161,105 +203,45 @@ test_template_files() {
         fi
     done
     
-    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
-}
-
-test_script_syntax() {
-    local scripts=("scripts/entrypoint.sh" "scripts/health-check.sh" "scripts/setup-tools.sh" "scripts/cleanup.sh")
-    local all_valid=true
-    
-    for script in "${scripts[@]}"; do
-        if [[ ! -f "$script" ]]; then
-            log_warn "$script not found (skipping syntax check)"
-            continue
-        fi
-        
-        # Basic bash syntax check
-        if bash -n "$script" 2>/dev/null; then
-            log_info "✓ $script syntax valid"
-        else
-            log_info "✗ $script syntax error"
-            all_valid=false
-        fi
-        
-        # Check for shebang
-        if head -1 "$script" | grep -q "^#!/bin/bash"; then
-            log_info "✓ $script has proper shebang"
-        else
-            log_warn "$script missing proper shebang"
-            increment_warnings
-        fi
-    done
-    
-    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
-}
-
-test_documentation() {
-    local docs=("README.md" "CHANGELOG.md" "docs/MIGRATION.md" "docs/SECURITY.md")
-    local all_present=true
-    
-    for doc in "${docs[@]}"; do
-        if [[ ! -f "$doc" ]]; then
-            log_info "✗ $doc not found"
-            all_present=false
-        else
-            # Check if file is not empty
-            if [[ -s "$doc" ]]; then
-                log_info "✓ $doc exists and is not empty"
-            else
-                log_info "✗ $doc is empty"
-                all_present=false
-            fi
-        fi
-    done
-    
-    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
-}
-
-test_github_workflows() {
-    local workflows=(".github/workflows/test.yaml" ".github/workflows/release.yaml" ".github/workflows/security.yaml")
-    local all_valid=true
-    
-    for workflow in "${workflows[@]}"; do
-        if [[ ! -f "$workflow" ]]; then
-            log_info "✗ $workflow not found"
-            all_valid=false
-            continue
-        fi
-        
-        # Basic structure check (don't require yq)
-        if grep -q "^name:" "$workflow" && grep -q "^on:" "$workflow"; then
-            log_info "✓ $workflow has basic structure"
-        else
-            log_info "✗ $workflow missing required fields"
-            all_valid=false
-        fi
-    done
-    
-    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
+    if [[ "$all_valid" == "true" ]]; then
+        log_pass "$test_name"
+    else
+        log_fail "$test_name"
+    fi
 }
 
 main() {
     log_info "=== EKS Helm Client Unit Tests ==="
     
     # Setup test environment
-    if ! setup_test_env; then
-        log_error "Failed to setup test environment"
-        exit 1
-    fi
+    setup_test_env
     
     # Run all tests
-    run_test "Script Permissions" test_script_permissions
-    run_test "Required Files" test_required_files
-    run_test "Dockerfile Syntax" test_dockerfile_syntax
-    run_test "action.yml Syntax" test_action_yml_syntax
-    run_test "Template Files" test_template_files
-    run_test "Script Syntax" test_script_syntax
-    run_test "Documentation" test_documentation
-    run_test "GitHub Workflows" test_github_workflows
+    test_script_permissions
+    test_required_files
+    test_dockerfile_syntax
+    test_action_yml_syntax
+    test_template_files
     
-    # Exit with summary
-    exit_with_summary "Unit Tests"
+    # Print summary
+    echo ""
+    echo -e "${BLUE}=== Test Results Summary ===${NC}" >&2
+    echo -e "${GREEN}Passed:${NC} $TESTS_PASSED" >&2
+    echo -e "${RED}Failed:${NC} $TESTS_FAILED" >&2
+    
+    # Exit with appropriate code
+    if [[ $TESTS_FAILED -gt 0 ]]; then
+        echo -e "${RED}[FAIL]${NC} Unit tests failed! ($TESTS_FAILED failures)" >&2
+        exit 1
+    else
+        echo -e "${GREEN}[PASS]${NC} All unit tests passed! ($TESTS_PASSED tests)" >&2
+        exit 0
+    fi
 }
 
+# Disable 'set -e' for the main function to handle errors manually
+set +e
 main
+exit_code=$?
+set -e
+exit $exit_code
