@@ -39,37 +39,53 @@ validate_action_yml() {
     local all_present=true
     
     for field in "${required_fields[@]}"; do
-        if grep -q "^${field}:" action.yml && [[ -n "$(grep "^${field}:" action.yml | cut -d':' -f2- | tr -d ' ')" ]]; then
-            log_info "✓ action.yml has '${field}' field"
+        # More flexible field detection - handle both top-level and slightly indented
+        if grep -q "^${field}:" action.yml || grep -q "^[[:space:]]*${field}:" action.yml; then
+            local field_value
+            field_value=$(grep "^[[:space:]]*${field}:" action.yml | head -1 | cut -d':' -f2- | tr -d ' "'"'"'')
+            if [[ -n "$field_value" ]]; then
+                log_info "✓ action.yml has '${field}' field"
+            else
+                log_info "✗ action.yml has '${field}' field but it's empty"
+                all_present=false
+            fi
         else
-            log_info "✗ action.yml missing or empty '${field}' field"
+            log_info "✗ action.yml missing '${field}' field"
             all_present=false
         fi
     done
     
-    # Check Docker configuration specifically
-    if grep -q "using: 'docker'" action.yml || grep -q 'using: "docker"' action.yml; then
+    # Check Docker configuration specifically - more flexible detection
+    local has_docker_using=false
+    local has_dockerfile_image=false
+    
+    # Check for Docker using configuration
+    if grep -q "using:[[:space:]]*[\"']docker[\"']" action.yml || grep -q "using:[[:space:]]*docker" action.yml; then
         log_info "✓ Action uses Docker runtime"
-        
-        if grep -q "image: 'Dockerfile'" action.yml || grep -q 'image: "Dockerfile"' action.yml; then
-            log_info "✓ Action references Dockerfile correctly"
-        else
-            log_info "✗ Action image must reference 'Dockerfile'"
-            all_present=false
-        fi
+        has_docker_using=true
     else
         log_info "✗ Action runs.using must be 'docker'"
         all_present=false
     fi
     
+    # Check for Dockerfile image reference
+    if grep -q "image:[[:space:]]*[\"']Dockerfile[\"']" action.yml || grep -q "image:[[:space:]]*Dockerfile" action.yml; then
+        log_info "✓ Action references Dockerfile correctly"
+        has_dockerfile_image=true
+    else
+        log_info "✗ Action image must reference 'Dockerfile'"
+        all_present=false
+    fi
+    
     # Check for inputs section
-    if grep -q "^inputs:" action.yml; then
+    if grep -q "^inputs:" action.yml || grep -q "^[[:space:]]*inputs:" action.yml; then
         log_info "✓ action.yml has inputs section"
         
         # Check for required inputs
         local required_inputs=("args")
         for input in "${required_inputs[@]}"; do
-            if grep -A 10 "^inputs:" action.yml | grep -q "^  ${input}:"; then
+            # Look for the input within the inputs section
+            if awk '/^[[:space:]]*inputs:/,/^[^[:space:]]/ {print}' action.yml | grep -q "^[[:space:]]*${input}:"; then
                 log_info "✓ action.yml has required input '${input}'"
             else
                 log_info "✗ action.yml missing required input '${input}'"
@@ -82,13 +98,15 @@ validate_action_yml() {
     fi
     
     # Check branding section (optional but recommended)
-    if grep -q "^branding:" action.yml; then
+    if grep -q "^branding:" action.yml || grep -q "^[[:space:]]*branding:" action.yml; then
         log_info "✓ action.yml has branding section"
-        increment_warnings  # This is good practice but not required
     else
         log_warn "action.yml missing branding section (recommended for marketplace)"
         increment_warnings
     fi
+    
+    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
+}
     
     return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
 }
