@@ -173,15 +173,6 @@ jobs:
             echo "status=success" >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
-            
-          
-          # Add debugging info if enabled
-          if [[ "${{ github.event.inputs.debug }}" == "true" ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Debug Information" >> $GITHUB_STEP_SUMMARY
-            echo "- Debug mode was enabled for this run" >> $GITHUB_STEP_SUMMARY
-            echo "- Check individual job logs for detailed debugging output" >> $GITHUB_STEP_SUMMARY
-          fi
 
       - name: Fail workflow on test failure
         if: steps.summary.outputs.status == 'failure'
