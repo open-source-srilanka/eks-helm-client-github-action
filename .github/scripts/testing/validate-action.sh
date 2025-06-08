@@ -21,45 +21,64 @@ validate_action_yml() {
 
     local all_present=true
     
-    # Check required top-level fields with flexible detection
-    local required_fields=("name" "description" "runs")
-    for field in "${required_fields[@]}"; do
-        if grep -q "^${field}:" action.yml || grep -q "^[[:space:]]*${field}:" action.yml; then
-            local field_value
-            field_value=$(grep "^[[:space:]]*${field}:" action.yml | head -1 | cut -d':' -f2- | sed 's/^[[:space:]]*//' | sed 's/["\047]//g')
-            if [[ -n "$field_value" ]]; then
-                log_info "✓ action.yml has '${field}' field: $field_value"
-            else
-                log_info "✗ action.yml has '${field}' field but it's empty"
-                all_present=false
-            fi
+    # Check for simple fields (name, description)
+    if grep -q "^name:" action.yml; then
+        local name_value
+        name_value=$(grep "^name:" action.yml | cut -d':' -f2- | sed 's/^[[:space:]]*//' | sed 's/["\047]//g')
+        if [[ -n "$name_value" ]]; then
+            log_info "✓ action.yml has 'name' field: $name_value"
         else
-            log_info "✗ action.yml missing '${field}' field"
+            log_info "✗ action.yml 'name' field is empty"
             all_present=false
         fi
-    done
-    
-    # Check Docker configuration
-    if grep -q "using.*docker" action.yml; then
-        log_info "✓ Action uses Docker runtime"
     else
-        log_info "✗ Action runs.using must be 'docker'"
+        log_info "✗ action.yml missing 'name' field"
         all_present=false
     fi
     
-    if grep -q "image.*Dockerfile" action.yml; then
-        log_info "✓ Action references Dockerfile correctly"
+    if grep -q "^description:" action.yml; then
+        local desc_value
+        desc_value=$(grep "^description:" action.yml | cut -d':' -f2- | sed 's/^[[:space:]]*//' | sed 's/["\047]//g')
+        if [[ -n "$desc_value" ]]; then
+            log_info "✓ action.yml has 'description' field: $desc_value"
+        else
+            log_info "✗ action.yml 'description' field is empty"
+            all_present=false
+        fi
     else
-        log_info "✗ Action image must reference 'Dockerfile'"
+        log_info "✗ action.yml missing 'description' field"
+        all_present=false
+    fi
+    
+    # Check for runs section (it's an object, so just check it exists)
+    if grep -q "^runs:" action.yml; then
+        log_info "✓ action.yml has 'runs' section"
+        
+        # Check contents of runs section
+        if grep -A 5 "^runs:" action.yml | grep -q "using.*docker"; then
+            log_info "✓ Action uses Docker runtime"
+        else
+            log_info "✗ Action runs.using must be 'docker'"
+            all_present=false
+        fi
+        
+        if grep -A 5 "^runs:" action.yml | grep -q "image.*Dockerfile"; then
+            log_info "✓ Action references Dockerfile correctly"
+        else
+            log_info "✗ Action image must reference 'Dockerfile'"
+            all_present=false
+        fi
+    else
+        log_info "✗ action.yml missing 'runs' section"
         all_present=false
     fi
     
     # Check for inputs section
-    if grep -q "inputs:" action.yml; then
+    if grep -q "^inputs:" action.yml; then
         log_info "✓ action.yml has inputs section"
         
-        # Check for args input
-        if grep -A 20 "inputs:" action.yml | grep -q "args:"; then
+        # Check for args input within inputs section
+        if grep -A 50 "^inputs:" action.yml | grep -q "^  args:" || grep -A 50 "^inputs:" action.yml | grep -q "^[[:space:]]*args:"; then
             log_info "✓ action.yml has required input 'args'"
         else
             log_info "✗ action.yml missing required input 'args'"
@@ -71,7 +90,7 @@ validate_action_yml() {
     fi
     
     # Check branding section (optional)
-    if grep -q "branding:" action.yml; then
+    if grep -q "^branding:" action.yml; then
         log_info "✓ action.yml has branding section"
     else
         log_warn "action.yml missing branding section (recommended for marketplace)"
