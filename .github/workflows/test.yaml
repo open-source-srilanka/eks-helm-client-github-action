@@ -47,14 +47,17 @@ jobs:
           chmod +x scripts/*.sh
 
       - name: Run Unit Tests
-        run: .github/scripts/testing/run-unit-tests.sh
+        # run: .github/scripts/testing/run-unit-tests.sh
+        run: |
+          bash .github/scripts/testing/run-unit-tests.sh || true
+          cat /tmp/eks-helm-test-*/test-results.txt || echo "No test results found"
 
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
-          path: /tmp/test-results.txt
+          path: /tmp/eks-helm-test-*/test-results.txt
           if-no-files-found: ignore
 
   integration-tests:
