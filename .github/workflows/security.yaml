@@ -108,7 +108,10 @@ jobs:
         with:
           sarif_file: reports/dependency-check-report.sarif
           category: 'dependency-check'
-            
+
+      - name: Debug Report Directory
+        run: ls -la reports     
+         
       - name: Create Dependency Check Summary
         run: |
           echo "## 📦 Dependency Security Check" >> $GITHUB_STEP_SUMMARY
