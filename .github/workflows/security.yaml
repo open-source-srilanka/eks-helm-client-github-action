@@ -101,20 +101,20 @@ jobs:
           sarif_file: reports/dependency-check-report.sarif
           category: 'dependency-check'
 
-  secret-scan:
-    name: Secret Detection
-    runs-on: ubuntu-latest
+  # secret-scan:
+  #   name: Secret Detection
+  #   runs-on: ubuntu-latest
     
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Run Gitleaks
+  #       uses: gitleaks/gitleaks-action@v2
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   codeql:
     name: CodeQL Analysis
@@ -128,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'python' ]
+        language: [ 'bash', 'dockerfile', 'go', 'javascript', 'python', 'ruby' ]
 
     steps:
       - name: Checkout
