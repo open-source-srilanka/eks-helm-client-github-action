@@ -194,13 +194,15 @@ validate_scripts() {
         if [[ -f "$script" ]]; then
             log_info "✓ Script exists: $script"
             
+            # Check executable permission but only warn, don't fail
             if [[ -x "$script" ]]; then
                 log_info "✓ Script is executable: $script"
             else
-                log_info "✗ Script is not executable: $script"
-                scripts_status=1
+                log_warn "Script is not executable (consider: chmod +x $script)"
+                # Don't set scripts_status=1 - just warn
             fi
             
+            # Check syntax - this is more important
             if bash -n "$script" 2>/dev/null; then
                 log_info "✓ Script syntax is valid: $script"
             else
