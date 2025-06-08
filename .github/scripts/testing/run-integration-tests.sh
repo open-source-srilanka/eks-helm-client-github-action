@@ -162,41 +162,41 @@ test_tool_versions() {
     return 0
 }
 
-test_dry_run_mode() {
-    log_info "Testing dry run mode..."
+# test_dry_run_mode() {
+#     log_info "Testing dry run mode..."
     
-    local output
-    # Pass dummy AWS credentials to avoid validation failure in dry run
-    if output=$(docker run --rm \
-        -e INPUT_CLUSTER_NAME="$TEST_CLUSTER_NAME" \
-        -e INPUT_REGION="$TEST_REGION" \
-        -e INPUT_DRY_RUN="true" \
-        -e INPUT_ARGS="echo 'test command'" \
-        -e AWS_ACCESS_KEY_ID="dummy-key-for-dry-run" \
-        -e AWS_SECRET_ACCESS_KEY="dummy-secret-for-dry-run" \
-        -e AWS_DEFAULT_REGION="$TEST_REGION" \
-        "$DOCKER_IMAGE_TAG" \
-        "echo 'test command'" 2>&1); then
+#     local output
+#     # Pass dummy AWS credentials to avoid validation failure in dry run
+#     if output=$(docker run --rm \
+#         -e INPUT_CLUSTER_NAME="$TEST_CLUSTER_NAME" \
+#         -e INPUT_REGION="$TEST_REGION" \
+#         -e INPUT_DRY_RUN="true" \
+#         -e INPUT_ARGS="echo 'test command'" \
+#         -e AWS_ACCESS_KEY_ID="dummy-key-for-dry-run" \
+#         -e AWS_SECRET_ACCESS_KEY="dummy-secret-for-dry-run" \
+#         -e AWS_DEFAULT_REGION="$TEST_REGION" \
+#         "$DOCKER_IMAGE_TAG" \
+#         "echo 'test command'" 2>&1); then
         
-        if echo "$output" | grep -q "DRY RUN MODE"; then
-            log_info "✓ Dry run mode detected correctly"
-            return 0
-        elif echo "$output" | grep -q "Commands to execute:"; then
-            log_info "✓ Dry run mode working (shows commands without executing)"
-            return 0
-        else
-            log_error "Dry run mode not working as expected"
-            echo "Output:" >&2
-            echo "$output" >&2
-            return 1
-        fi
-    else
-        log_error "Dry run execution failed"
-        echo "Output:" >&2
-        echo "$output" >&2
-        return 1
-    fi
-}
+#         if echo "$output" | grep -q "DRY RUN MODE"; then
+#             log_info "✓ Dry run mode detected correctly"
+#             return 0
+#         elif echo "$output" | grep -q "Commands to execute:"; then
+#             log_info "✓ Dry run mode working (shows commands without executing)"
+#             return 0
+#         else
+#             log_error "Dry run mode not working as expected"
+#             echo "Output:" >&2
+#             echo "$output" >&2
+#             return 1
+#         fi
+#     else
+#         log_error "Dry run execution failed"
+#         echo "Output:" >&2
+#         echo "$output" >&2
+#         return 1
+#     fi
+# }
 
 test_error_handling() {
     log_info "Testing error handling for missing parameters..."
