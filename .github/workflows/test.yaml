@@ -148,8 +148,8 @@ jobs:
             echo "status=success" >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          fi
             
-
       - name: Fail workflow on test failure
         if: steps.summary.outputs.status == 'failure'
         run: |
