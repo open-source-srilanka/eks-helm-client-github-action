@@ -4,11 +4,44 @@
 
 set -e
 
-# Source shared testing utilities
-source "$(dirname "$0")/../../.github/scripts/testing/utils.sh"
-
-# Reset counters for this script
-reset_counters
+# Source shared testing utilities with error handling
+if [[ -f "$(dirname "$0")/../../.github/scripts/testing/utils.sh" ]]; then
+    source "$(dirname "$0")/../../.github/scripts/testing/utils.sh"
+    reset_counters
+else
+    # Fallback if utils.sh not available
+    readonly RED='\033[0;31m'
+    readonly GREEN='\033[0;32m'
+    readonly YELLOW='\033[1;33m'
+    readonly BLUE='\033[0;34m'
+    readonly NC='\033[0m'
+    
+    TESTS_PASSED=0
+    TESTS_FAILED=0
+    
+    log_info() { echo -e "${BLUE}[INFO]${NC} $1" >&2; }
+    log_test_result() { 
+        if [[ "$1" == "PASS" ]]; then
+            echo -e "${GREEN}✓${NC} $2" >&2
+            ((TESTS_PASSED++))
+        else
+            echo -e "${RED}✗${NC} $2: $3" >&2
+            ((TESTS_FAILED++))
+        fi
+    }
+    exit_with_summary() {
+        echo -e "\n${BLUE}=== $1 Results Summary ===${NC}" >&2
+        echo -e "${GREEN}Passed:${NC} $TESTS_PASSED" >&2
+        echo -e "${RED}Failed:${NC} $TESTS_FAILED" >&2
+        if [[ $TESTS_FAILED -gt 0 ]]; then
+            echo -e "${RED}[FAIL]${NC} $1 failed!" >&2
+            exit 1
+        else
+            echo -e "${GREEN}[PASS]${NC} All $1 passed!" >&2
+            exit 0
+        fi
+    }
+fi
 
 # Test configuration
 readonly CONFIG_TEMPLATE="templates/config.template"
@@ -30,6 +63,258 @@ run_test() {
         return 1
     fi
 }
+
+test_template_files_exist() {
+    local all_exist=true
+    
+    if [[ -f "$CONFIG_TEMPLATE" ]]; then
+        log_info "✓ Standard config template exists"
+    else
+        log_info "✗ Standard config template missing: $CONFIG_TEMPLATE"
+        all_exist=false
+    fi
+    
+    if [[ -f "$PRIVATE_CONFIG_TEMPLATE" ]]; then
+        log_info "✓ Private config template exists"
+    else
+        log_info "✗ Private config template missing: $PRIVATE_CONFIG_TEMPLATE"
+        all_exist=false
+    fi
+    
+    if [[ -f "$HELM_VALUES_TEMPLATE" ]]; then
+        log_info "✓ Helm values template exists"
+    else
+        log_info "⚠ Helm values template missing: $HELM_VALUES_TEMPLATE (optional)"
+    fi
+    
+    return $([[ "$all_exist" == "true" ]] && echo 0 || echo 1)
+}
+
+test_config_template_structure() {
+    if [[ ! -f "$CONFIG_TEMPLATE" ]]; then
+        return 1
+    fi
+    
+    # Check for required YAML structure
+    if grep -q "apiVersion: v1" "$CONFIG_TEMPLATE" && grep -q "kind: Config" "$CONFIG_TEMPLATE"; then
+        log_info "✓ Config template has proper YAML structure"
+    else
+        log_info "✗ Config template missing proper YAML structure"
+        return 1
+    fi
+    
+    # Check for required sections
+    local required_sections=("clusters:" "contexts:" "users:")
+    local all_present=true
+    
+    for section in "${required_sections[@]}"; do
+        if grep -q "$section" "$CONFIG_TEMPLATE"; then
+            log_info "✓ Config template has $section section"
+        else
+            log_info "✗ Config template missing $section section"
+            all_present=false
+        fi
+    done
+    
+    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
+}
+
+test_config_template_variables() {
+    if [[ ! -f "$CONFIG_TEMPLATE" ]]; then
+        return 1
+    fi
+    
+    # Check for required template variables
+    local required_vars=(
+        "\${CLUSTER_NAME}"
+        "\${REGION_CODE}"
+        "\${ENDPOINT_URL}"
+        "\${CA_CERT}"
+    )
+    local all_present=true
+    
+    for var in "${required_vars[@]}"; do
+        if grep -q "$var" "$CONFIG_TEMPLATE"; then
+            log_info "✓ Config template contains $var"
+        else
+            log_info "✗ Config template missing $var"
+            all_present=false
+        fi
+    done
+    
+    # Check for AWS authentication configuration
+    if grep -q "aws.*eks.*get-token" "$CONFIG_TEMPLATE"; then
+        log_info "✓ Config template has AWS EKS authentication"
+    else
+        log_info "✗ Config template missing AWS EKS authentication"
+        all_present=false
+    fi
+    
+    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
+}
+
+test_private_config_template_structure() {
+    if [[ ! -f "$PRIVATE_CONFIG_TEMPLATE" ]]; then
+        return 1
+    fi
+    
+    # Check for private cluster specific features
+    local private_features=(
+        "private-cluster"
+        "vpc"
+        "VPC_ENDPOINT"
+        "PRIVATE_"
+    )
+    local features_found=0
+    
+    for feature in "${private_features[@]}"; do
+        if grep -qi "$feature" "$PRIVATE_CONFIG_TEMPLATE"; then
+            log_info "✓ Private config template has $feature configuration"
+            ((features_found++))
+        fi
+    done
+    
+    if [[ $features_found -gt 0 ]]; then
+        log_info "✓ Private config template has private cluster features"
+        return 0
+    else
+        log_info "✗ Private config template missing private cluster features"
+        return 1
+    fi
+}
+
+test_template_substitution() {
+    if [[ ! -f "$CONFIG_TEMPLATE" ]]; then
+        return 1
+    fi
+    
+    # Test that template variables are properly formatted for envsubst
+    local test_vars=(
+        "CLUSTER_NAME"
+        "REGION_CODE"
+        "ENDPOINT_URL"
+        "CA_CERT"
+    )
+    
+    for var in "${test_vars[@]}"; do
+        # Check that variables are in ${VAR} format, not $VAR
+        if grep -q "\${${var}}" "$CONFIG_TEMPLATE"; then
+            log_info "✓ Variable $var properly formatted for substitution"
+        elif grep -q "\${var}" "$CONFIG_TEMPLATE"; then
+            log_info "⚠ Variable $var should use \${} format for envsubst"
+        fi
+    done
+    
+    return 0
+}
+
+test_template_yaml_validity() {
+    # Only test if envsubst is available
+    if ! command -v envsubst >/dev/null 2>&1; then
+        log_info "⚠ envsubst not available, skipping YAML validity test"
+        return 0
+    fi
+    
+    # Test that templates would produce valid YAML after substitution
+    local temp_dir="/tmp/template-test-$"
+    mkdir -p "$temp_dir"
+    
+    # Test config template with dummy values
+    if [[ -f "$CONFIG_TEMPLATE" ]]; then
+        local test_config="$temp_dir/test-config.yaml"
+        
+        # Set test environment variables
+        export CLUSTER_NAME="test-cluster"
+        export REGION_CODE="us-west-2"
+        export ENDPOINT_URL="https://test.eks.amazonaws.com"
+        export CA_CERT="LS0tLS1CRUdJTi0tLS0t"
+        export AWS_ACCOUNT_ID="123456789012"
+        export USER_NAME="test-user"
+        export CONTEXT_NAME="test-context"
+        
+        # Substitute variables
+        if envsubst < "$CONFIG_TEMPLATE" > "$test_config" 2>/dev/null; then
+            log_info "✓ Config template substitution successful"
+            
+            # Basic YAML validation (check for proper structure)
+            if grep -q "apiVersion: v1" "$test_config" && grep -q "kind: Config" "$test_config"; then
+                log_info "✓ Generated config has valid YAML structure"
+            else
+                log_info "✗ Generated config has invalid YAML structure"
+                rm -rf "$temp_dir"
+                # Clean up environment variables
+                unset CLUSTER_NAME REGION_CODE ENDPOINT_URL CA_CERT AWS_ACCOUNT_ID USER_NAME CONTEXT_NAME
+                return 1
+            fi
+        else
+            log_info "✗ Config template substitution failed"
+            rm -rf "$temp_dir"
+            # Clean up environment variables
+            unset CLUSTER_NAME REGION_CODE ENDPOINT_URL CA_CERT AWS_ACCOUNT_ID USER_NAME CONTEXT_NAME
+            return 1
+        fi
+        
+        # Clean up environment variables
+        unset CLUSTER_NAME REGION_CODE ENDPOINT_URL CA_CERT AWS_ACCOUNT_ID USER_NAME CONTEXT_NAME
+    fi
+    
+    # Cleanup
+    rm -rf "$temp_dir"
+    return 0
+}
+
+test_template_security() {
+    # Check that templates don't contain hardcoded secrets
+    local templates=("$CONFIG_TEMPLATE" "$PRIVATE_CONFIG_TEMPLATE")
+    if [[ -f "$HELM_VALUES_TEMPLATE" ]]; then
+        templates+=("$HELM_VALUES_TEMPLATE")
+    fi
+    
+    local security_issues=0
+    
+    for template in "${templates[@]}"; do
+        if [[ ! -f "$template" ]]; then
+            continue
+        fi
+        
+        # Check for potential hardcoded secrets (simplified patterns)
+        if grep -qi "password.*=" "$template" && ! grep -q "\${.*PASSWORD}" "$template"; then
+            log_info "⚠ Template $(basename "$template") may contain hardcoded passwords"
+        fi
+        
+        if grep -qi "secret.*=" "$template" && ! grep -q "\${.*SECRET}" "$template"; then
+            log_info "⚠ Template $(basename "$template") may contain hardcoded secrets"
+        fi
+        
+        # Check for proper variable substitution
+        if grep -q "\${.*PASSWORD}" "$template" || grep -q "\${.*SECRET}" "$template"; then
+            log_info "✓ Template $(basename "$template") uses variable substitution for secrets"
+        fi
+    done
+    
+    log_info "✓ Template security check completed"
+    return 0
+}
+
+main() {
+    log_info "=== Configuration Template Unit Tests ==="
+    
+    # Run all tests (continue even if some fail)
+    set +e
+    run_test "Template Files Exist" test_template_files_exist
+    run_test "Config Template Structure" test_config_template_structure
+    run_test "Config Template Variables" test_config_template_variables
+    run_test "Private Config Structure" test_private_config_template_structure
+    run_test "Template Substitution" test_template_substitution
+    run_test "YAML Validity" test_template_yaml_validity
+    run_test "Template Security" test_template_security
+    set -e
+    
+    # Exit with summary
+    exit_with_summary "Template Tests"
+}
+
+main
 
 test_template_files_exist() {
     local all_exist=true
