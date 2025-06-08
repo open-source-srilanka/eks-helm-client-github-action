@@ -166,12 +166,14 @@ test_dry_run_mode() {
     log_info "Testing dry run mode..."
     
     local output
+    # Pass the command as an argument to the container, not just environment variable
     if output=$(docker run --rm \
         -e INPUT_CLUSTER_NAME="$TEST_CLUSTER_NAME" \
         -e INPUT_REGION="$TEST_REGION" \
         -e INPUT_DRY_RUN="true" \
         -e INPUT_ARGS="echo 'test command'" \
-        "$DOCKER_IMAGE_TAG" 2>&1); then
+        "$DOCKER_IMAGE_TAG" \
+        "echo 'test command'" 2>&1); then
         
         if echo "$output" | grep -q "DRY RUN MODE"; then
             log_info "✓ Dry run mode detected correctly"
@@ -193,17 +195,19 @@ test_dry_run_mode() {
 test_error_handling() {
     log_info "Testing error handling for missing parameters..."
     
-    # Test missing cluster name
+    # Test missing cluster name - this should fail
     local output
     if output=$(docker run --rm \
         -e INPUT_REGION="$TEST_REGION" \
         -e INPUT_ARGS="echo 'test'" \
-        "$DOCKER_IMAGE_TAG" 2>&1); then
+        "$DOCKER_IMAGE_TAG" \
+        "echo 'test'" 2>&1); then
         
-        # Should fail with missing cluster name
+        # If the command succeeded, that's unexpected
         log_error "Should have failed with missing cluster name"
         return 1
     else
+        # Command failed as expected, check the error message
         if echo "$output" | grep -q "CLUSTER_NAME is required"; then
             log_info "✓ Proper error handling for missing cluster name"
             return 0
