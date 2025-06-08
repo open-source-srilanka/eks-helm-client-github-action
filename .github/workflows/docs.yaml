@@ -226,16 +226,6 @@ jobs:
           title: EKS Helm Client GitHub Action
           ---
           
-          # Quick Links
-          
-          - 🚀 [Quick Start](#quick-start)
-          - 📚 [Documentation](#documentation)
-          - 🔧 [Examples](docs/examples/basic-usage)
-          - 🔄 [Migration Guide](docs/MIGRATION)
-          - 📋 [Changelog](CHANGELOG)
-          
-          ---
-          
           EOF
           
           # Append README content without the title
