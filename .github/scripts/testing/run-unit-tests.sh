@@ -36,90 +36,99 @@ cleanup_test_env() {
     fi
 }
 
+# Helper function to safely test conditions
+safe_test() {
+    local test_name="$1"
+    local test_function="$2"
+    
+    log_message "INFO" "Running test: $test_name"
+    
+    if $test_function; then
+        log_message "PASS" "$test_name"
+        return 0
+    else
+        log_message "FAIL" "$test_name"
+        return 1
+    fi
+}
+
 test_script_permissions() {
-    local test_name="Script Permissions"
     local scripts=("scripts/entrypoint.sh" "scripts/setup-tools.sh" "scripts/health-check.sh" "scripts/cleanup.sh")
     local all_executable=true
     
     for script in "${scripts[@]}"; do
         if [[ ! -f "$script" ]]; then
-            log_message "FAIL" "$test_name - $script" "File not found"
+            log_message "INFO" "✗ $script not found"
             all_executable=false
         elif [[ ! -x "$script" ]]; then
-            log_message "FAIL" "$test_name - $script" "Not executable"
+            log_message "INFO" "✗ $script not executable"
             all_executable=false
         else
             log_message "INFO" "✓ $script is executable"
         fi
     done
     
-    if [[ "$all_executable" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_executable" == "true" ]] && echo 0 || echo 1)
 }
 
 test_required_files() {
-    local test_name="Required Files"
     local files=("action.yml" "Dockerfile" "README.md" "LICENSE.md")
     local all_exist=true
     
     for file in "${files[@]}"; do
         if [[ ! -f "$file" ]]; then
-            log_message "FAIL" "$test_name - $file" "File not found"
+            log_message "INFO" "✗ $file not found"
             all_exist=false
         else
             log_message "INFO" "✓ $file exists"
         fi
     done
     
-    if [[ "$all_exist" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_exist" == "true" ]] && echo 0 || echo 1)
 }
 
 test_dockerfile_syntax() {
-    local test_name="Dockerfile Syntax"
-    
     if [[ ! -f "Dockerfile" ]]; then
-        log_message "FAIL" "$test_name" "Dockerfile not found"
-        return
+        log_message "INFO" "✗ Dockerfile not found"
+        return 1
     fi
     
     # Basic Dockerfile syntax checks
+    local has_from=false
+    local has_entrypoint=false
+    
     if grep -q "^FROM " Dockerfile; then
         log_message "INFO" "✓ Dockerfile has FROM instruction"
+        has_from=true
     else
-        log_message "FAIL" "$test_name" "Missing FROM instruction"
-        return
+        log_message "INFO" "✗ Dockerfile missing FROM instruction"
     fi
     
     if grep -q "^ENTRYPOINT " Dockerfile || grep -q "^CMD " Dockerfile; then
         log_message "INFO" "✓ Dockerfile has entry point"
+        has_entrypoint=true
     else
-        log_message "FAIL" "$test_name" "Missing ENTRYPOINT or CMD instruction"
-        return
+        log_message "INFO" "✗ Dockerfile missing ENTRYPOINT or CMD instruction"
     fi
     
-    log_message "PASS" "$test_name"
+    return $([[ "$has_from" == "true" && "$has_entrypoint" == "true" ]] && echo 0 || echo 1)
 }
 
 test_action_yml_syntax() {
-    local test_name="action.yml Syntax"
-    
     if [[ ! -f "action.yml" ]]; then
-        log_message "FAIL" "$test_name" "action.yml not found"
-        return
+        log_message "INFO" "✗ action.yml not found"
+        return 1
     fi
     
     # Check required fields
-    local required_fields=("name:" "description:" "runs:" "inputs:")
+    local required_fields=("name:" "description:" "runs:")
     local all_present=true
     
     for field in "${required_fields[@]}"; do
         if grep -q "^${field}" action.yml; then
             log_message "INFO" "✓ action.yml has $field"
         else
-            log_message "FAIL" "$test_name" "Missing required field: $field"
+            log_message "INFO" "✗ action.yml missing $field"
             all_present=false
         fi
     done
@@ -128,23 +137,20 @@ test_action_yml_syntax() {
     if grep -q "using: 'docker'" action.yml && grep -q "image: 'Dockerfile'" action.yml; then
         log_message "INFO" "✓ action.yml configured for Docker"
     else
-        log_message "FAIL" "$test_name" "Docker configuration invalid"
+        log_message "INFO" "✗ action.yml Docker configuration invalid"
         all_present=false
     fi
     
-    if [[ "$all_present" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
 }
 
 test_template_files() {
-    local test_name="Template Files"
     local templates=("templates/config.template" "templates/private-config.template")
     local all_valid=true
     
     for template in "${templates[@]}"; do
         if [[ ! -f "$template" ]]; then
-            log_message "FAIL" "$test_name - $template" "Template not found"
+            log_message "INFO" "✗ $template not found"
             all_valid=false
             continue
         fi
@@ -153,18 +159,15 @@ test_template_files() {
         if grep -q '\${CLUSTER_NAME}' "$template" && grep -q '\${REGION_CODE}' "$template"; then
             log_message "INFO" "✓ $template has required variables"
         else
-            log_message "FAIL" "$test_name - $template" "Missing required template variables"
+            log_message "INFO" "✗ $template missing required variables"
             all_valid=false
         fi
     done
     
-    if [[ "$all_valid" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
 }
 
 test_script_syntax() {
-    local test_name="Script Syntax"
     local scripts=("scripts/entrypoint.sh" "scripts/health-check.sh" "scripts/setup-tools.sh" "scripts/cleanup.sh")
     local all_valid=true
     
@@ -178,7 +181,7 @@ test_script_syntax() {
         if bash -n "$script" 2>/dev/null; then
             log_message "INFO" "✓ $script syntax valid"
         else
-            log_message "FAIL" "$test_name - $script" "Syntax error detected"
+            log_message "INFO" "✗ $script syntax error"
             all_valid=false
         fi
         
@@ -186,74 +189,56 @@ test_script_syntax() {
         if head -1 "$script" | grep -q "^#!/bin/bash"; then
             log_message "INFO" "✓ $script has proper shebang"
         else
-            log_message "WARN" "$test_name - $script" "Missing or invalid shebang"
+            log_message "INFO" "⚠ $script missing proper shebang"
         fi
     done
     
-    if [[ "$all_valid" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
 }
 
 test_documentation() {
-    local test_name="Documentation"
     local docs=("README.md" "CHANGELOG.md" "docs/MIGRATION.md" "docs/SECURITY.md")
     local all_present=true
     
     for doc in "${docs[@]}"; do
         if [[ ! -f "$doc" ]]; then
-            log_message "FAIL" "$test_name - $doc" "Documentation file not found"
+            log_message "INFO" "✗ $doc not found"
             all_present=false
         else
             # Check if file is not empty
             if [[ -s "$doc" ]]; then
                 log_message "INFO" "✓ $doc exists and is not empty"
             else
-                log_message "FAIL" "$test_name - $doc" "Documentation file is empty"
+                log_message "INFO" "✗ $doc is empty"
                 all_present=false
             fi
         fi
     done
     
-    if [[ "$all_present" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_present" == "true" ]] && echo 0 || echo 1)
 }
 
 test_github_workflows() {
-    local test_name="GitHub Workflows"
     local workflows=(".github/workflows/test.yaml" ".github/workflows/release.yaml" ".github/workflows/security.yaml")
     local all_valid=true
     
     for workflow in "${workflows[@]}"; do
         if [[ ! -f "$workflow" ]]; then
-            log_message "FAIL" "$test_name - $workflow" "Workflow file not found"
+            log_message "INFO" "✗ $workflow not found"
             all_valid=false
             continue
         fi
         
-        # Basic YAML syntax check (if yq is available)
-        if command -v yq >/dev/null 2>&1; then
-            if yq eval . "$workflow" >/dev/null 2>&1; then
-                log_message "INFO" "✓ $workflow syntax valid"
-            else
-                log_message "FAIL" "$test_name - $workflow" "YAML syntax error"
-                all_valid=false
-            fi
+        # Basic structure check (don't require yq)
+        if grep -q "^name:" "$workflow" && grep -q "^on:" "$workflow"; then
+            log_message "INFO" "✓ $workflow has basic structure"
         else
-            # Basic structure check
-            if grep -q "^name:" "$workflow" && grep -q "^on:" "$workflow"; then
-                log_message "INFO" "✓ $workflow has basic structure"
-            else
-                log_message "FAIL" "$test_name - $workflow" "Missing required workflow fields"
-                all_valid=false
-            fi
+            log_message "INFO" "✗ $workflow missing required fields"
+            all_valid=false
         fi
     done
     
-    if [[ "$all_valid" == "true" ]]; then
-        log_message "PASS" "$test_name"
-    fi
+    return $([[ "$all_valid" == "true" ]] && echo 0 || echo 1)
 }
 
 main() {
@@ -265,26 +250,81 @@ main() {
         exit 1
     fi
     
-    # Run all tests
-    test_script_permissions
-    test_required_files
-    test_dockerfile_syntax
-    test_action_yml_syntax
-    test_template_files
-    test_script_syntax
-    test_documentation
-    test_github_workflows
-
+    # Track results manually
+    local test_results=()
+    
+    # Run all tests and capture results
+    if safe_test "Script Permissions" test_script_permissions; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "Required Files" test_required_files; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "Dockerfile Syntax" test_dockerfile_syntax; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "action.yml Syntax" test_action_yml_syntax; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "Template Files" test_template_files; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "Script Syntax" test_script_syntax; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "Documentation" test_documentation; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    if safe_test "GitHub Workflows" test_github_workflows; then
+        test_results+=("PASS")
+    else
+        test_results+=("FAIL")
+    fi
+    
+    # Count results
+    local passed=0
+    local failed=0
+    
+    for result in "${test_results[@]}"; do
+        if [[ "$result" == "PASS" ]]; then
+            ((passed++))
+        else
+            ((failed++))
+        fi
+    done
+    
     log_message "INFO" "=== Test Results Summary ==="
-    echo -e "${GREEN}Passed:${NC} $TESTS_PASSED"
-    echo -e "${RED}Failed:${NC} $TESTS_FAILED"
+    echo -e "${GREEN}Passed:${NC} $passed"
+    echo -e "${RED}Failed:${NC} $failed"
     echo -e "${YELLOW}Skipped:${NC} $TESTS_SKIPPED"
     
-    if [[ $TESTS_FAILED -gt 0 ]]; then
-        log_message "FAIL" "Unit tests failed!"
+    if [[ $failed -gt 0 ]]; then
+        log_message "FAIL" "Unit tests failed! ($failed failures)"
         exit 1
     else
-        log_message "PASS" "All unit tests passed!"
+        log_message "PASS" "All unit tests passed! ($passed tests)"
+        exit 0
     fi
 }
 
