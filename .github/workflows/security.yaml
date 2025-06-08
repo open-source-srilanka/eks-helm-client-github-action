@@ -108,53 +108,6 @@ jobs:
           sarif_file: reports/dependency-check-report.sarif
           category: 'dependency-check'
 
-  # secret-scan:
-  #   name: Secret Detection
-  #   runs-on: ubuntu-latest
-    
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-
-  #     - name: Run Gitleaks
-  #       uses: gitleaks/gitleaks-action@v2
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # codeql:
-  #   name: CodeQL Analysis
-  #   runs-on: ubuntu-latest
-    
-  #   permissions:
-  #     actions: read
-  #     contents: read
-  #     security-events: write
-
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       language: [ 'bash', 'dockerfile', 'go', 'javascript', 'python', 'ruby' ]
-
-    # steps:
-    #   - name: Checkout
-    #     uses: actions/checkout@v4
-
-    #   - name: Initialize CodeQL
-    #     uses: github/codeql-action/init@v3
-    #     with:
-    #       languages: ${{ matrix.language }}
-    #       queries: security-and-quality
-
-    #   - name: Autobuild
-    #     uses: github/codeql-action/autobuild@v3
-
-    #   - name: Perform CodeQL Analysis
-    #     uses: github/codeql-action/analyze@v3
-    #     with:
-    #       category: "/language:${{matrix.language}}"
-
   security-policy:
     name: Security Policy Check
     runs-on: ubuntu-latest
