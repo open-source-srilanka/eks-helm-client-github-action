@@ -39,6 +39,8 @@ jobs:
 
       - name: Build
         run: .github/scripts/release/build-and-test.sh
+        env:
+          VERSION: ${{ steps.setup.outputs.version }}
 
       - name: Changelog
         id: changelog

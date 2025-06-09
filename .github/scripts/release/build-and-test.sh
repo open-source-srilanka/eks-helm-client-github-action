@@ -5,7 +5,7 @@
 set -e
 
 echo "🔨 Building Docker image..."
-docker build -t test-action:${{ steps.setup.outputs.version }} .
+docker build -t test-action:$VERSION .
 
 echo "🧪 Running basic tests..."
 # Quick validation test
@@ -15,6 +15,6 @@ docker run --rm \
   -e INPUT_ARGS="echo 'Test successful'" \
   -e INPUT_DRY_RUN=true \
   -e INPUT_DEBUG=true \
-  test-action:${{ steps.setup.outputs.version }}
+  test-action:$VERSION
 
 echo "✅ Build and test completed successfully"
