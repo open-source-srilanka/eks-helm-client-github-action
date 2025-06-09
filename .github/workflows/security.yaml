@@ -136,9 +136,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [[ -d "reports" ]]; then
-            echo "### Reports directory contents:" >> $GITHUB_STEP_SUMMARY
-            ls -la reports/ >> $GITHUB_STEP_SUMMARY 2>&1 || echo "Unable to list reports directory" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
             
             if [[ -f "reports/dependency-check-report.html" ]]; then
               echo "✅ HTML report generated" >> $GITHUB_STEP_SUMMARY
