@@ -5,17 +5,18 @@
 set -e
 
 # Determine version and release type
-if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-  VERSION="${{ github.event.inputs.version }}"
-  RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
-  VERSION="${{ github.ref_name }}"
+if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+  VERSION="$INPUT_VERSION"
+elif [[ "$EVENT_NAME" == "push" && "$REF_TYPE" == "tag" ]]; then
+  VERSION="$REF_NAME"
   VERSION="${VERSION#v}"
-  if [[ "$VERSION" == *"-rc"* ]]; then
-    RELEASE_TYPE="rc"
-  else
-    RELEASE_TYPE="stable"
-  fi
+fi
+
+# Determine release type based on version string
+if [[ "$VERSION" == *"-rc"* ]]; then
+  RELEASE_TYPE="rc"
+else
+  RELEASE_TYPE="stable"
 fi
 
 # Validate version format
