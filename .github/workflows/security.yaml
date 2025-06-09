@@ -112,21 +112,6 @@ jobs:
             --exclude "**/docs/**"
             --failOnCVSS 8
         continue-on-error: true
-            
-      - name: Debug Report Directory
-        if: always()
-        run: |
-          echo "Current directory:"
-          pwd
-          echo ""
-          echo "Directory contents:"
-          ls -la
-          echo ""
-          echo "Reports directory contents:"
-          ls -la reports/ || echo "Reports directory not found"
-          echo ""
-          echo "Looking for dependency check reports:"
-          find . -name "dependency-check-report.*" -type f 2>/dev/null || echo "No reports found"
           
       - name: Upload OWASP Results
         uses: github/codeql-action/upload-sarif@v3
