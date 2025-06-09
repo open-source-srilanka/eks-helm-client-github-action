@@ -4,9 +4,6 @@
 
 set -e
 
-VERSION="${{ steps.setup.outputs.version }}"
-RELEASE_TYPE="${{ steps.setup.outputs.release_type }}"
-
 # Create version tag if it doesn't exist
 if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
   git tag "v$VERSION"

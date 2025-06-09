@@ -45,9 +45,16 @@ jobs:
       - name: Changelog
         id: changelog
         run: .github/scripts/release/generate-changelog.sh
+        env:
+          VERSION: ${{ steps.setup.outputs.version }}
+          RELEASE_TYPE: ${{ steps.setup.outputs.release_type }}
+          REPOSITORY: ${{ github.repository }}
 
       - name: Tag
         run: .github/scripts/release/create-tag.sh
+        env:
+          VERSION: ${{ steps.setup.outputs.version }}
+          RELEASE_TYPE: ${{ steps.setup.outputs.release_type }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -59,3 +66,9 @@ jobs:
 
       - name: Notify
         run: .github/scripts/release/marketplace-notice.sh
+        env:
+          VERSION: ${{ steps.setup.outputs.version }}
+          RELEASE_TYPE: ${{ steps.setup.outputs.release_type }}
+          TAG_NAME: ${{ steps.setup.outputs.tag_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}

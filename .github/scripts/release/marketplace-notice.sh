@@ -4,15 +4,11 @@
 
 set -e
 
-VERSION="${{ steps.setup.outputs.version }}"
-RELEASE_TYPE="${{ steps.setup.outputs.release_type }}"
-TAG_NAME="${{ steps.setup.outputs.tag_name }}"
-
 echo "🎉 Release v$VERSION created!"
 echo ""
 echo "📦 Release Type: $RELEASE_TYPE"
 echo "🏷️ Tag: $TAG_NAME"
-echo "🔗 Release URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG_NAME"
+echo "🔗 Release URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG_NAME"
 echo ""
 
 if [[ "$RELEASE_TYPE" == "stable" ]]; then
@@ -30,5 +26,5 @@ fi
   echo "- **Version**: v$VERSION"
   echo "- **Type**: $RELEASE_TYPE"
   echo "- **Marketplace Status**: Published"
-  echo "- **Release URL**: [$TAG_NAME](${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG_NAME)"
+  echo "- **Release URL**: [$TAG_NAME]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG_NAME)"
 } >> $GITHUB_STEP_SUMMARY
