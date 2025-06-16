@@ -29,7 +29,7 @@ jobs:
           context: . # Build context is the current directory (where Dockerfile is located)
           push: true # Enable pushing the image to Docker Hub
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/eks-helm-client-test:latest # Tag with 'latest'
+            ${{ secrets.DOCKER_USERNAME }}/eks-helm-client-test:latest 
             ${{ secrets.DOCKER_USERNAME }}/eks-helm-client-test:${{ github.sha }}
           # build-args: |
           #   K8_VERSION=1.30.2
