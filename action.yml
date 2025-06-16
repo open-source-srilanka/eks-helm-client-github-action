@@ -1,74 +1,13 @@
+# action.yml
 name: 'EKS Helm Client'
-description: 'Helm client to install and upgrade Helm chart on EKS cluster with support for private clusters and repositories'
-author: 'Open Source Sri Lanka'
+description: 'Helm client to install and upgrade Helm chart on EKS cluster'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
-
 runs:
   using: 'docker'
   image: 'Dockerfile'
-
 inputs:
   args:
-    description: 'Commands to install and upgrade Helm chart'
+    description: Commands need to install and upgrade Helm chart
     required: true
-  
-  cluster-name:
-    description: 'EKS cluster name (falls back to CLUSTER_NAME env var if not provided)'
-    required: true
-  
-  region:
-    description: 'AWS region where the EKS cluster is located (falls back to REGION_CODE env var if not provided)'
-    required: true
-  
-  private-cluster:
-    description: 'Set to true if EKS cluster is private (default: false)'
-    required: false
-    default: 'false'
-  
-  helm-registry-url:
-    description: 'Private Helm registry URL'
-    required: false
-  
-  helm-registry-username:
-    description: 'Username for private Helm registry'
-    required: false
-  
-  helm-registry-password:
-    description: 'Password for private Helm registry'
-    required: false
-  
-  helm-registry-insecure:
-    description: 'Allow insecure connection to Helm registry (default: false)'
-    required: false
-    default: 'false'
-  
-  kubectl-version:
-    description: 'Kubectl version to use (default: 1.28.4)'
-    required: false
-    default: '1.28.4'
-  
-  helm-version:
-    description: 'Helm version to use (default: 3.13.3)'
-    required: false
-    default: '3.13.3'
-  
-  timeout:
-    description: 'Timeout for kubectl and helm operations in seconds (default: 300)'
-    required: false
-    default: '300'
-  
-  debug:
-    description: 'Enable debug logging (default: false)'
-    required: false
-    default: 'false'
-  
-  kubeconfig-path:
-    description: 'Custom path for kubeconfig file'
-    required: false
-  
-  dry-run:
-    description: 'Perform a dry run without making actual changes (default: false)'
-    required: false
-    default: 'false'
