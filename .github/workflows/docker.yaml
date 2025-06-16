@@ -3,7 +3,7 @@ name: Build & Push Docker Image to Docker Hub
 on:
   push:
     branches:
-      - devlop # Trigger on pushes to the main branch
+      - develop # Trigger on pushes to the main branch
   workflow_dispatch: # Allows manual triggering of the workflow
 
 jobs:
