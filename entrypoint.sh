@@ -127,80 +127,103 @@ log_success "Successfully connected to Kubernetes cluster"
 # Check for Helm registry credentials if any helm registry login commands are present
 log_info "Checking for Helm registry credentials..."
 helm_login_required=false
-for cmd in "$@"; do
-    if echo "$cmd" | grep -q "helm registry login"; then
-        helm_login_required=true
-        break
-    fi
-done
+commands_string="$*"
+
+if echo "$commands_string" | grep -q "helm registry login"; then
+    helm_login_required=true
+fi
 
 if [ "$helm_login_required" = true ]; then
     log_info "Helm registry login detected in commands"
     
-    # Extract registry from the command to provide better error messages
-    for cmd in "$@"; do
-        if echo "$cmd" | grep -q "helm registry login"; then
-            registry=$(echo "$cmd" | grep -o "helm registry login [^ ]*" | cut -d' ' -f4)
-            log_info "Will attempt to login to registry: $registry"
-            
-            # Check if credentials are available (this is a basic check)
-            if echo "$cmd" | grep -q "\$.*USERNAME" && echo "$cmd" | grep -q "\$.*PASSWORD"; then
-                log_info "Registry credentials will be read from environment variables"
-                # Note: We can't validate the actual values here as they're in variables
-            else
-                log_error "Helm registry login command found but credentials format is unclear"
-                log_error "Expected format: helm registry login <registry> --username \$USERNAME --password \$PASSWORD"
-            fi
-        fi
-    done
+    # Extract registry from the commands to provide better error messages
+    registry=$(echo "$commands_string" | grep -o "helm registry login [^ ]*" | head -1 | cut -d' ' -f4)
+    if [ -n "$registry" ]; then
+        log_info "Will attempt to login to registry: $registry"
+    fi
+    
+    # Check if credentials are available (this is a basic check)
+    if echo "$commands_string" | grep -q "\$.*USERNAME" && echo "$commands_string" | grep -q "\$.*PASSWORD"; then
+        log_info "Registry credentials will be read from environment variables"
+        # Note: We can't validate the actual values here as they're in variables
+    else
+        log_error "Helm registry login command found but credentials format is unclear"
+        log_error "Expected format: helm registry login <registry> --username \$USERNAME --password \$PASSWORD"
+    fi
 fi
 
 echo "--- Executing Commands ---"
 
-# Execute each argument as a separate command
-# This allows passing multiple commands line by line
+# Join all arguments into a single string and process line by line
+# This handles multi-line commands properly
+commands="$*"
 command_count=0
-for cmd in "$@"; do
-    command_count=$((command_count + 1))
-    log_info "Executing command $command_count: $cmd"
-    
-    # Execute the command and capture both stdout and stderr
-    if eval "$cmd"; then
-        log_success "Command $command_count completed successfully"
-    else
-        exit_code=$?
-        log_error "Command $command_count failed with exit code $exit_code"
-        log_error "Failed command: $cmd"
-        
-        # Provide specific error guidance based on command type
-        if echo "$cmd" | grep -q "helm registry login"; then
-            log_error "Helm registry login failed. Please check:"
-            log_error "  - Registry URL is correct and accessible"
-            log_error "  - Username and password environment variables are set correctly"
-            log_error "  - Network connectivity to the registry"
-        elif echo "$cmd" | grep -q "helm install"; then
-            log_error "Helm install failed. Please check:"
-            log_error "  - Chart name and version are correct"
-            log_error "  - Namespace exists or --create-namespace is used"
-            log_error "  - Sufficient permissions in the cluster"
-            log_error "  - Chart repository is accessible"
-        elif echo "$cmd" | grep -q "helm uninstall"; then
-            log_error "Helm uninstall failed. Please check:"
-            log_error "  - Release name exists in the specified namespace"
-            log_error "  - Sufficient permissions to delete resources"
-        elif echo "$cmd" | grep -q "kubectl"; then
-            log_error "Kubectl command failed. Please check:"
-            log_error "  - Kubernetes cluster connectivity"
-            log_error "  - Sufficient permissions for the operation"
-            log_error "  - Resource names and namespaces are correct"
-        fi
-        
-        exit $exit_code
+
+# Process commands line by line, handling line continuations
+current_command=""
+while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines
+    if [ -z "$(echo "$line" | xargs)" ]; then
+        continue
     fi
     
-    # Add a small delay between commands for better logging readability
-    sleep 1
-done
+    # Check if line ends with backslash (continuation)
+    if [[ "$line" =~ \\[[:space:]]*$ ]]; then
+        # Remove trailing backslash and whitespace, add to current command
+        current_command="$current_command$(echo "$line" | sed 's/\\[[:space:]]*$//')"
+        current_command="$current_command "
+        continue
+    else
+        # Complete the command
+        current_command="$current_command$line"
+    fi
+    
+    # Execute the complete command
+    if [ -n "$current_command" ]; then
+        command_count=$((command_count + 1))
+        log_info "Executing command $command_count: $current_command"
+        
+        # Execute the command and capture both stdout and stderr
+        if eval "$current_command"; then
+            log_success "Command $command_count completed successfully"
+        else
+            exit_code=$?
+            log_error "Command $command_count failed with exit code $exit_code"
+            log_error "Failed command: $current_command"
+            
+            # Provide specific error guidance based on command type
+            if echo "$current_command" | grep -q "helm registry login"; then
+                log_error "Helm registry login failed. Please check:"
+                log_error "  - Registry URL is correct and accessible"
+                log_error "  - Username and password environment variables are set correctly"
+                log_error "  - Network connectivity to the registry"
+            elif echo "$current_command" | grep -q "helm install"; then
+                log_error "Helm install failed. Please check:"
+                log_error "  - Chart name and version are correct"
+                log_error "  - Namespace exists or --create-namespace is used"
+                log_error "  - Sufficient permissions in the cluster"
+                log_error "  - Chart repository is accessible"
+            elif echo "$current_command" | grep -q "helm uninstall"; then
+                log_error "Helm uninstall failed. Please check:"
+                log_error "  - Release name exists in the specified namespace"
+                log_error "  - Sufficient permissions to delete resources"
+            elif echo "$current_command" | grep -q "kubectl"; then
+                log_error "Kubectl command failed. Please check:"
+                log_error "  - Kubernetes cluster connectivity"
+                log_error "  - Sufficient permissions for the operation"
+                log_error "  - Resource names and namespaces are correct"
+            fi
+            
+            exit $exit_code
+        fi
+        
+        # Reset for next command
+        current_command=""
+        
+        # Add a small delay between commands for better logging readability
+        sleep 1
+    fi
+done <<< "$commands"
 
 log_success "All commands completed successfully!"
 echo "--- Execution Summary ---"
