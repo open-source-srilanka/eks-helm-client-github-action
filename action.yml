@@ -1,6 +1,6 @@
 # action.yml
 name: 'EKS Helm Client'
-description: 'Helm client to install and upgrade Helm chart on EKS cluster'
+description: 'Helm client to install and upgrade Helm chart on EKS cluster with comprehensive error handling'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
@@ -9,5 +9,25 @@ runs:
   image: 'Dockerfile'
 inputs:
   args:
-    description: Commands need to install and upgrade Helm chart
+    description: 'Commands to execute'
     required: true
+  aws-access-key-id:
+    description: 'AWS Access Key ID'
+    required: false
+  aws-secret-access-key:
+    description: 'AWS Secret Access Key'
+    required: false
+  aws-region:
+    description: 'AWS Region where the EKS cluster is located'
+    required: true
+  # EKS Configuration
+  cluster-name:
+    description: 'Name of the EKS cluster'
+    required: true
+  # Helm Registry Credentials (optional)
+  helm-registry-username:
+    description: 'Username for Helm registry authentication'
+    required: false
+  helm-registry-password:
+    description: 'Password for Helm registry authentication'
+    required: false
