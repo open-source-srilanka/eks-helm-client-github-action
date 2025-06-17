@@ -1,6 +1,6 @@
 # action.yml
 name: 'EKS Helm Client'
-description: 'Helm client to install and upgrade Helm chart on EKS cluster with comprehensive error handling'
+description: 'Helm client to install and upgrade Helm chart on EKS cluster with support for private clusters'
 branding:
   icon: 'upload-cloud'
   color: 'blue'
@@ -11,6 +11,7 @@ inputs:
   args:
     description: 'Commands to execute'
     required: true
+  # AWS Configuration
   aws-access-key-id:
     description: 'AWS Access Key ID'
     required: false
@@ -30,4 +31,23 @@ inputs:
     required: false
   helm-registry-password:
     description: 'Password for Helm registry authentication'
+    required: false
+  # Private Cluster Support
+  bastion-host:
+    description: 'Bastion host IP/hostname for private cluster access'
+    required: false
+  bastion-user:
+    description: 'SSH username for bastion host'
+    required: false
+  ssh-private-key:
+    description: 'SSH private key for bastion host access'
+    required: false
+  http-proxy:
+    description: 'HTTP proxy URL for private cluster access'
+    required: false
+  https-proxy:
+    description: 'HTTPS proxy URL for private cluster access'
+    required: false
+  no-proxy:
+    description: 'Comma-separated list of hosts to bypass proxy'
     required: false

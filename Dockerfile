@@ -8,12 +8,17 @@ ENV KUBECONFIG="/opt/kubernetes/config"
 # ca-certificates: For validating SSL/TLS connections
 # bash: Shell environment
 # git: For cloning Git repositories, potentially private Helm charts
-# gnupg: For verifying signed Helm charts or other secured assets (already present, ensuring it's there)
+# gnupg: For verifying signed Helm charts or other secured assets
 # jq: A lightweight and flexible command-line JSON processor
 # py-pip: Python package installer, used for awscli
-# curl: Tool for transferring data with URL syntax (already present, ensuring it's there)
-# gettext: GNU gettext for internationalization (already present)
+# curl: Tool for transferring data with URL syntax
+# gettext: GNU gettext for internationalization
+# openssh-client: SSH client for bastion host connectivity
+# bind-tools: DNS utilities (nslookup, dig)
+# netcat-openbsd: Network testing utilities
+# timeout: Command timeout utility
 RUN apk add --no-cache ca-certificates bash git gnupg jq py-pip \
+    openssh-client bind-tools netcat-openbsd coreutils \
     && apk add --update -t deps curl gettext \
     && pip install awscli
 
@@ -42,9 +47,11 @@ RUN curl -o aws-iam-authenticator https://github.com/kubernetes-sigs/aws-iam-aut
 # Clean up APK cache to reduce image size
 RUN rm -rf /var/cache/apk/*
 
-# Create directories for Kubernetes config and Helm, and set appropriate permissions
-# These directories are used for storing configurations and cache
-RUN mkdir -p /opt/kubernetes && chmod a+rwx /opt/kubernetes && mkdir -p /opt/helm && chmod a+rwx /opt/helm
+# Create directories for Kubernetes config, Helm, and SSH
+# Set appropriate permissions for multi-user scenarios
+RUN mkdir -p /opt/kubernetes && chmod a+rwx /opt/kubernetes && \
+    mkdir -p /opt/helm && chmod a+rwx /opt/helm && \
+    mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
 # Set Helm environment variables for cache and config home
 ENV HELM_HOME="/opt/helm"
