@@ -42,13 +42,7 @@ echo "----------------------"
 export KUBECONFIG=/opt/kubernetes/config
 
 echo "--- Executing Helm Commands ---"
-
-# Check if arguments are provided
-if [ $# -eq 0 ]; then
-    echo "No commands provided. Exiting."
-    exit 0
-fi
-
-# Always execute with bash to handle complex command strings
-echo "Executing commands with bash..."
-exec bash -c "$*"
+# Execute the commands passed as arguments to the action (e.g., Helm commands)
+# The "$@" expands to all positional parameters passed to the script,
+# which corresponds to the `args` input in your `action.yml`.
+exec "$@"
